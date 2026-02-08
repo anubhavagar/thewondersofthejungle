@@ -1,0 +1,25 @@
+# Web Framework
+fastapi==0.128.4
+uvicorn==0.40.0
+python-multipart==0.0.22
+
+# Computer Vision & AI Core
+mediapipe==0.10.11
+tensorflow==2.16.1
+tf_keras==2.16.0
+deepface==0.0.98
+
+# Image Processing & Data
+# (Pinned to prevent breaking MediaPipe/TF compatibility)
+numpy==1.26.4
+opencv-python==4.10.0.84
+opencv-contrib-python==4.11.0.86
+protobuf==3.20.3
+
+# Utilities
+python-dotenv==1.2.1
+pandas==2.3.3
+
+# Pinned for faster resolution
+jax==0.4.26
+jaxlib==0.4.26
