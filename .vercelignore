@@ -1,22 +1,25 @@
-# Exclude heavy folders from Vercel upload
-node_modules
-dist
-build
-.next
-.git
-.venv
-venv
-env
-.env
-*.db
-api/uploads
-__pycache__
+# Local dev environments
+venv/
+.venv/
+env/
+__pycache__/
 *.pyc
-.cache
-.parcel-cache
-.vercel
+
+# Local databases
+*.db
+*.sqlite
+
+# Frontend source (Keep only the build/dist)
+frontend/src/
+frontend/public/
 node_modules/
 frontend/node_modules/
-backend/
-tmp/
-temp/
+
+# Large assets
+api/uploads/
+*.mp4
+*.zip
+*.tar.gz
+
+# Vercel's own metadata
+.vercel
