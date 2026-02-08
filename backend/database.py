@@ -1,8 +1,12 @@
 import sqlite3
 import datetime
 
+from .config import settings
 import os
-DB_NAME = os.path.join(os.path.dirname(__file__), "health_app.db")
+
+# DB_NAME is now managed in config.py
+DB_NAME = settings.POSTGRES_URL.replace("sqlite:///", "") if settings.POSTGRES_URL.startswith("sqlite:///") else settings.POSTGRES_URL
+
 import base64
 import uuid
 
@@ -68,8 +72,9 @@ def verify_otp_db(mobile, otp, delete_after=True):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # OTP valid for 60 minutes
-    cursor.execute("SELECT * FROM otps WHERE mobile = ? AND otp = ? AND timestamp > datetime('now', '-60 minutes')", (mobile, otp))
+    # OTP expiry now in config
+    expiry = settings.OTP_EXPIRY_MINUTES
+    cursor.execute(f"SELECT * FROM otps WHERE mobile = ? AND otp = ? AND timestamp > datetime('now', '-{expiry} minutes')", (mobile, otp))
     row = cursor.fetchone()
     if row:
         if delete_after:

@@ -5,6 +5,7 @@ from model_service.vision import vision_model
 from model_service.health import health_model
 from model_service.gymnastics import gymnastics_analyzer # Real implementation
 from backend.database import init_db, save_history, get_history, create_user, get_user_by_mobile, save_otp, verify_otp_db
+from backend.config import settings
 
 router = APIRouter()
 
@@ -13,20 +14,23 @@ init_db()
 
 @router.post("/auth/request-otp")
 async def request_otp(request: OTPRequest):
-    # Generate 4-digit OTP
+    # Generate OTP based on config length
     import random
-    otp = f"{random.randint(1000, 9999)}"
+    otp = "".join([str(random.randint(0, 9)) for _ in range(settings.OTP_LENGTH)])
     
     # Save to DB
     from backend.database import save_otp
     save_otp(request.mobile, otp)
     
-    # Simulation: Print to console
+    # Simulation: Print to console (SMS)
     print("\n" + "="*30)
     print(f"🦁 JUNGLE OTP FOR {request.mobile}: {otp}")
+    
+    # Simulation: Send to Email (as requested)
+    print(f"📧 EMAIL SIMULATION: Sent to {settings.OTP_SENDER_EMAIL}")
     print("="*30 + "\n")
     
-    return {"message": "OTP sent to your console (Simulated)"}
+    return {"message": f"OTP sent to {request.mobile} and {settings.OTP_SENDER_EMAIL} (Simulated)"}
 
 @router.post("/auth/verify-otp")
 async def verify_otp(request: OTPVerifyRequest):
