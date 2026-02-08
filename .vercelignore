@@ -1,16 +1,18 @@
-# Ignore all dot-folders
-.*
-# But allow the ones Vercel needs
-!.vercel
-!.github
+# Block EVERYTHING
+/*
 
-# Ignore all node_modules everywhere
-**/node_modules/
-**/venv/
-**/.venv/
+# ALLOW only these specific things
+!/api/
+!/frontend/
+!/vercel.json
+!/package.json
+!/requirements.txt
+
+# RE-BLOCK the heavy stuff inside those folders
+/frontend/node_modules/
+/frontend/src/
 **/__pycache__/
-
-# Ignore build artifacts
-**/dist/
+**/.git/
 **/.next/
-**/.cache/
+**/.venv/
+**/venv/
