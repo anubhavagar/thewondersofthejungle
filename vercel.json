@@ -9,10 +9,5 @@
       "source": "/(.*)",
       "destination": "/frontend/dist/$1"
     }
-  ],
-  "functions": {
-    "api/main.py": {
-      "runtime": "python3.10"
-    }
-  }
+  ]
 }
