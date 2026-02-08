@@ -1,0 +1,22 @@
+# Exclude heavy folders from Vercel upload
+node_modules
+dist
+build
+.next
+.git
+.venv
+venv
+env
+.env
+*.db
+api/uploads
+__pycache__
+*.pyc
+.cache
+.parcel-cache
+.vercel
+node_modules/
+frontend/node_modules/
+backend/
+tmp/
+temp/
