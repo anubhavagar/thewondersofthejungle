@@ -1,25 +1,16 @@
-# Local dev environments
-venv/
-.venv/
-env/
-__pycache__/
-*.pyc
+# Ignore all dot-folders
+.*
+# But allow the ones Vercel needs
+!.vercel
+!.github
 
-# Local databases
-*.db
-*.sqlite
+# Ignore all node_modules everywhere
+**/node_modules/
+**/venv/
+**/.venv/
+**/__pycache__/
 
-# Frontend source (Keep only the build/dist)
-frontend/src/
-frontend/public/
-node_modules/
-frontend/node_modules/
-
-# Large assets
-api/uploads/
-*.mp4
-*.zip
-*.tar.gz
-
-# Vercel's own metadata
-.vercel
+# Ignore build artifacts
+**/dist/
+**/.next/
+**/.cache/
