@@ -13,8 +13,8 @@ def get_db_connection():
         # Vercel provides postgres://, but psycopg2 prefers postgresql://
         if uri.startswith("postgres://"):
             uri = uri.replace("postgres://", "postgresql://", 1)
-        conn = psycopg2.connect(uri)
-        return conn
+        # Use RealDictCursor to match sqlite3.Row behavior
+        return psycopg2.connect(uri, cursor_factory=RealDictCursor)
     else:
         import sqlite3
         # Fallback to SQLite
@@ -111,15 +111,6 @@ def verify_otp_db(mobile, otp, delete_after=True):
     if row:
         if delete_after:
             cursor.execute(f"DELETE FROM otps WHERE mobile = {placeholder}", (mobile,))
-            conn.commit()
-        conn.close()
-        return True
-    conn.close()
-    return False
-    row = cursor.fetchone()
-    if row:
-        if delete_after:
-            cursor.execute("DELETE FROM otps WHERE mobile = ?", (mobile,))
             conn.commit()
         conn.close()
         return True

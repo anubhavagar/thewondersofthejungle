@@ -5,9 +5,9 @@ class Settings(BaseSettings):
     # App Settings
     PROJECT_NAME: str = "The Wonders of the Jungle"
     
-    # DB Settings (Local fallback, will be overridden by Vercel Postgres Environment Variables)
-    # Vercel Postgres provides POSTGRES_URL, POSTGRES_PRISMA_URL, etc.
-    POSTGRES_URL: str = os.getenv("POSTGRES_URL", "sqlite:///./backend/health_app.db")
+    # DB Settings (Hybrid: Switches between local and Vercel Postgres)
+    POSTGRES_URL: str = os.getenv("POSTGRES_URL", f"sqlite:///{os.path.join(os.path.dirname(__file__), 'health_app.db')}")
+    DB_NAME: str = os.path.join(os.path.dirname(__file__), "health_app.db")
     
     # OTP Settings
     OTP_EXPIRY_MINUTES: int = 60
