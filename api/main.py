@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api.endpoints import router as api_router
+from api.routes.endpoints import router as api_router
 
 app = FastAPI(title="Lion King Health API", description="Backend for the Lion King themed Health Status App")
 
@@ -19,8 +19,8 @@ import os
 app.include_router(api_router)
 
 # Mount uploads directory
-os.makedirs("backend/uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
+os.makedirs("api/uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="api/uploads"), name="uploads")
 
 @app.get("/")
 async def root():

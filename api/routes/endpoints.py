@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
-from backend.schemas.schemas import FaceAnalysisRequest, HealthDataRequest, HistoryRequest, GymnasticsAnalysisRequest, OTPRequest, OTPVerifyRequest, AuthResponse
+from api.schemas.schemas import FaceAnalysisRequest, HealthDataRequest, HistoryRequest, GymnasticsAnalysisRequest, OTPRequest, OTPVerifyRequest, AuthResponse
 from model_service.vision import vision_model
 from model_service.health import health_model
 from model_service.gymnastics import gymnastics_analyzer # Real implementation
-from backend.database import init_db, save_history, get_history, create_user, get_user_by_mobile, save_otp, verify_otp_db
-from backend.config import settings
+from api.database import init_db, save_history, get_history, create_user, get_user_by_mobile, save_otp, verify_otp_db
+from api.config import settings
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ async def request_otp(request: OTPRequest):
     otp = "".join([str(random.randint(0, 9)) for _ in range(settings.OTP_LENGTH)])
     
     # Save to DB
-    from backend.database import save_otp
+    from api.database import save_otp
     save_otp(request.mobile, otp)
     
     # Simulation: Print to console (SMS)
@@ -34,7 +34,7 @@ async def request_otp(request: OTPRequest):
 
 @router.post("/auth/verify-otp")
 async def verify_otp(request: OTPVerifyRequest):
-    from backend.database import verify_otp_db, get_user_by_mobile, create_user
+    from api.database import verify_otp_db, get_user_by_mobile, create_user
     
     user = get_user_by_mobile(request.mobile)
     

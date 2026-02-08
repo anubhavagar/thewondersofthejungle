@@ -177,8 +177,8 @@ def save_history(name, result, image_data=None, user_id=None):
                 saved_image_path = blob.get("url")
             else:
                 # Fallback to local filesystem
-                os.makedirs("backend/uploads", exist_ok=True)
-                filepath = os.path.join("backend/uploads", filename)
+                os.makedirs("api/uploads", exist_ok=True)
+                filepath = os.path.join("api/uploads", filename)
                 with open(filepath, "wb") as f:
                     f.write(file_bytes)
                 saved_image_path = f"/uploads/{filename}"
