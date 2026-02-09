@@ -16,11 +16,21 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      - name: Install Hugging Face CLI
+      - name: Install Hugging Face Hub
         run: pip install huggingface_hub
 
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python3 -m huggingface_hub.commands.huggingface_cli upload anubhavagar/thewondersofthejungle ./ ./ --repo-type space --token $HF_TOKEN --commit-message "Sync from GitHub (LFS support)"
+          python3 -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi()
+          api.upload_folder(
+              folder_path='.',
+              repo_id='anubhavagar/thewondersofthejungle',
+              repo_type='space',
+              token=os.environ['HF_TOKEN'],
+              commit_message='Sync from GitHub'
+          )"
