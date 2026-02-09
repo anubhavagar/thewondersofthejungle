@@ -17,7 +17,7 @@ const HealthTable = ({ history }) => {
                 </thead>
                 <tbody>
                     {history.map((entry) => (
-                        <tr key={entry.id} className="text-nowrap">
+                        <tr key={entry.id}>
                             <td>{entry.timestamp}</td>
                             <td className="fw-bold text-pride-gold">{entry.name}</td>
                             <td>
@@ -29,7 +29,7 @@ const HealthTable = ({ history }) => {
                                     />
                                 ) : <span style={{ fontSize: '24px' }}>🦁</span>}
                             </td>
-                            <td>{entry.result.happiness}</td>
+                            <td style={{ minWidth: '150px', whiteSpace: 'normal' }}>{entry.result.happiness}</td>
                             <td>{entry.result.energy}</td>
                             <td>{entry.result.hydration}</td>
                         </tr>

@@ -22,6 +22,7 @@ class HistoryRequest(BaseModel):
 class GymnasticsAnalysisRequest(BaseModel):
     media_data: str # Base64 encoded image or video (or dummy identifier for sim)
     media_type: str # 'image' or 'video'
+    category: Optional[str] = "Senior" # e.g. "Under 10", "Junior", "Senior"
 
 class OTPRequest(BaseModel):
     mobile: str

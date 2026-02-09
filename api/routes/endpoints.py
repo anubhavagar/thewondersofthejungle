@@ -97,9 +97,18 @@ async def analyze_face(request: FaceAnalysisRequest):
 @router.post("/analyze/gymnastics")
 async def analyze_gymnastics(request: GymnasticsAnalysisRequest):
     try:
-        results = gymnastics_analyzer.analyze_media(request.media_data, request.media_type)
+        results = gymnastics_analyzer.analyze_media(
+            media_data=request.media_data, 
+            media_type=request.media_type, 
+            category=request.category
+        )
         return results
     except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        print(error_msg)
+        with open("backend_error.log", "w") as f:
+            f.write(error_msg)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/analyze/wellness")

@@ -172,6 +172,39 @@ def init_db():
         )
     ''')
 
+    # --- WAG Specific Tables ---
+    
+    # WAG Elements Dictionary (Code of Points)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_wag_elements (
+            id {primary_key_type},
+            apparatus_id INTEGER,
+            code TEXT UNIQUE NOT NULL, -- e.g. W-001
+            name TEXT NOT NULL,
+            difficulty_value REAL, -- e.g. 0.1, 0.2
+            group_id INTEGER, -- 1-5
+            technical_criteria {json_type}, -- {{"split": 180, "ring": 80}}
+            FOREIGN KEY (apparatus_id) REFERENCES dim_apparatus (id)
+        )
+    ''')
+
+    # WAG D-Score Logs (Competition Results)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS fact_wag_d_score (
+            id {primary_key_type},
+            user_id INTEGER,
+            apparatus_id INTEGER,
+            d_score REAL,
+            element_ids {json_type}, -- List of top 8 elements used
+            connection_value REAL,
+            composition_requirements REAL,
+            dismount_bonus REAL,
+            timestamp {datetime_type} DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (apparatus_id) REFERENCES dim_apparatus (id)
+        )
+    ''')
+
     # Migrations (SQLite-only usually, but harmless for first-run Postgres)
     if not is_postgres:
         try:
@@ -182,7 +215,67 @@ def init_db():
             cursor.execute("ALTER TABLE history ADD COLUMN user_id INTEGER")
         except: pass
         
+    # Seed Data: Disciplines & Apparatus
+    try:
+        # WAG Discipline
+        cursor.execute(f"INSERT INTO dim_discipline (name, description) VALUES ('WAG', 'Womens Artistic Gymnastics') ON CONFLICT (name) DO NOTHING")
+        
+        # Determine placeholder for ID retrieval (rough check)
+        wag_id_query = "SELECT id FROM dim_discipline WHERE name = 'WAG'"
+        cursor.execute(wag_id_query)
+        wag_row = cursor.fetchone()
+        
+        if wag_row:
+            wag_id = wag_row[0] if isinstance(wag_row, tuple) else wag_row["id"]
+            
+            # WAG Apparatus list
+            wag_apps = [
+                ("VT", "Vault"),
+                ("UB", "Uneven Bars"),
+                ("BB", "Balance Beam"),
+                ("FX", "Floor Exercise")
+            ]
+            
+            for code, name in wag_apps:
+                cursor.execute(f"INSERT INTO dim_apparatus (discipline_id, name, code) VALUES ({wag_id}, '{name}', '{code}') ON CONFLICT (code) DO NOTHING")
+                
+    except Exception as e:
+        print(f"Error seeding WAG data: {e}")
+
     conn.commit()
+    
+    # --- One-time Cleanup: Limit history to latest 5 per user ---
+    try:
+        # Get all unique user IDs
+        cursor.execute("SELECT DISTINCT user_id FROM history WHERE user_id IS NOT NULL")
+        user_ids_raw = cursor.fetchall()
+        user_ids = []
+        for row in user_ids_raw:
+             # handle tuple from psycopg2 or Row from sqlite3
+             if isinstance(row, tuple):
+                 user_ids.append(row[0])
+             else:
+                 user_ids.append(row['user_id'])
+        
+        for uid in user_ids:
+            p = "%s" if is_postgres else "?"
+            # Prune existing data to 5 records
+            prune_sql = f"""
+                DELETE FROM history 
+                WHERE user_id = {p} 
+                AND id NOT IN (
+                    SELECT id FROM (
+                        SELECT id FROM history 
+                        WHERE user_id = {p} 
+                        ORDER BY id DESC LIMIT 5
+                    ) as t
+                )
+            """
+            cursor.execute(prune_sql, (uid, uid))
+        conn.commit()
+    except Exception as e:
+        print(f"Warning: Initial history cleanup failed: {e}")
+
     conn.close()
 
 def list_tables():
@@ -334,7 +427,27 @@ def save_history(name, result, image_data=None, user_id=None):
         history_id = cursor.fetchone()[0]
     else:
         history_id = cursor.lastrowid
-        
+
+    if user_id:
+        # Dynamic Pruning: Keep only latest 5 records per user
+        try:
+            prune_sql = f"""
+                DELETE FROM history 
+                WHERE user_id = {placeholder} 
+                AND id NOT IN (
+                    SELECT id FROM (
+                        SELECT id FROM history 
+                        WHERE user_id = {placeholder} 
+                        ORDER BY id DESC 
+                        LIMIT 5
+                    ) as t
+                )
+            """
+            cursor.execute(prune_sql, (user_id, user_id))
+            conn.commit()
+        except Exception as e:
+            print(f"Error pruning history: {e}")
+            
     conn.close()
     return {
         "id": history_id,

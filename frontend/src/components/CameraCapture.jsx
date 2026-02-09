@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { Button } from 'react-bootstrap';
 
-const CameraCapture = ({ onCapture, loading }) => {
+const CameraCapture = ({ onCapture, loading, hideButton }) => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [stream, setStream] = useState(null);
@@ -47,9 +47,11 @@ const CameraCapture = ({ onCapture, loading }) => {
                     Start Camera 🎥
                 </Button>
             ) : (
-                <Button variant="success" className="btn-lion btn-lg" onClick={takePhoto} disabled={loading}>
-                    {loading ? 'Analyzing...' : 'Take Photo 📸'}
-                </Button>
+                !hideButton && (
+                    <Button variant="success" className="btn-lion btn-lg" onClick={takePhoto} disabled={loading}>
+                        {loading ? 'Analyzing...' : 'Take Photo 📸'}
+                    </Button>
+                )
             )}
         </div>
     );

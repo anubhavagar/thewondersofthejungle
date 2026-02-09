@@ -145,6 +145,8 @@ h6 {
   font-size: 1.1rem;
   background-color: transparent !important;
   /* Force cell transparency */
+  word-break: break-word;
+  white-space: normal;
 }
 
 .table-dashboard td:first-child {
@@ -222,6 +224,7 @@ h6 {
 }
 
 /* Keep Gymnastics Styles (used inside Gymnastics Component) */
+/* Keep Gymnastics Styles (used inside Gymnastics Component) */
 .card-jungle {
   border: 4px solid var(--jungle-green-light);
   border-radius: 25px;
@@ -230,6 +233,53 @@ h6 {
   position: relative;
   overflow: hidden;
   color: #333;
+}
+
+/* Interactive Upload Card (Beautified) */
+.card-jungle-interactive {
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.9);
+  /* Glassmorphism base */
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.card-jungle-interactive:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2);
+}
+
+.card-jungle-interactive.photo-variant {
+  border-color: var(--junior-cyan);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(225, 245, 254, 0.4));
+}
+
+.card-jungle-interactive.photo-variant:hover {
+  border-color: #00bcd4;
+  box-shadow: 0 15px 45px rgba(0, 188, 212, 0.3);
+}
+
+.card-jungle-interactive.video-variant {
+  border-color: var(--junior-pink);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(252, 228, 236, 0.4));
+}
+
+.card-jungle-interactive.video-variant:hover {
+  border-color: #e91e63;
+  box-shadow: 0 15px 45px rgba(233, 30, 99, 0.3);
+}
+
+.icon-bounce {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.card-jungle-interactive:hover .icon-bounce {
+  transform: scale(1.2) rotate(5deg);
 }
 
 /* Glass Overlay for Ritual */
@@ -272,6 +322,10 @@ h6 {
   font-family: 'Cinzel', serif;
 }
 
+.italic {
+  font-style: italic;
+}
+
 /* Theme specific classes if any still referenced */
 .frame-tribal {
   border: 5px solid var(--pride-gold);
@@ -284,8 +338,369 @@ h6 {
   background: black;
 }
 
+/* Latest Insights & Modern Cards */
+.insight-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1.25rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.insight-card:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 215, 64, 0.2);
+  transform: translateX(5px);
+}
+
+.highlight-card {
+  background: linear-gradient(135deg, rgba(27, 94, 32, 0.4) 0%, rgba(0, 0, 0, 0.3) 100%);
+  border: 1px solid rgba(255, 215, 64, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.insight-avatar-container {
+  position: relative;
+  width: 70px;
+  height: 70px;
+}
+
+.insight-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 1rem;
+  transition: filter 0.3s ease;
+}
+
+.insight-avatar-container:hover .insight-avatar {
+  filter: brightness(0.6);
+}
+
+.insight-avatar-container::after {
+  content: 'VIEW';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--pride-gold);
+  font-family: 'Cinzel', serif;
+  font-weight: bold;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+.insight-avatar-container:hover::after {
+  opacity: 1;
+}
+
+.insight-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--earth-dark);
+  border-radius: 1rem;
+  font-size: 2rem;
+  border: 2px solid var(--pride-gold);
+}
+
+/* Majestic Jungle Photo Frame */
+.jungle-photo-frame {
+  position: relative;
+  background: black;
+  border: 2px solid rgba(255, 215, 64, 0.3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 0, 0, 0.5);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.jungle-photo-frame::before,
+.jungle-photo-frame::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--pride-gold);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.jungle-photo-frame::before {
+  top: 8px;
+  left: 8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.jungle-photo-frame::after {
+  bottom: 8px;
+  right: 8px;
+  border-left: none;
+  border-top: none;
+}
+
+/* Dynamic Energy State Glows */
+.frame-energy-high {
+  border-color: rgba(255, 215, 64, 0.8) !important;
+  box-shadow: 0 0 30px rgba(255, 215, 64, 0.4), inset 0 0 40px rgba(255, 215, 64, 0.1) !important;
+}
+
+.frame-energy-high::before,
+.frame-energy-high::after {
+  filter: drop-shadow(0 0 5px var(--pride-gold));
+}
+
+.frame-energy-med {
+  border-color: rgba(255, 171, 64, 0.6) !important;
+  box-shadow: 0 0 25px rgba(255, 171, 64, 0.3), inset 0 0 30px rgba(255, 171, 64, 0.1) !important;
+}
+
+.frame-energy-med::before,
+.frame-energy-med::after {
+  border-color: var(--pride-orange) !important;
+}
+
+.frame-energy-low {
+  border-color: rgba(70, 210, 225, 0.4) !important;
+  box-shadow: 0 0 20px rgba(70, 210, 225, 0.2), inset 0 0 20px rgba(70, 210, 225, 0.05) !important;
+}
+
+.frame-energy-low::before,
+.frame-energy-low::after {
+  border-color: var(--junior-cyan) !important;
+}
+
+.metric-box {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  font-family: 'Quicksand', sans-serif;
+}
+
+/* Reusable Lion Button */
+.btn-lion {
+  background: linear-gradient(135deg, #ffd740 0%, #ffab40 100%);
+  border: none;
+  color: #1b5e20 !important;
+  font-weight: 800;
+  font-family: 'Cinzel', serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+.btn-lion:hover {
+  background: linear-gradient(135deg, #ffab40 0%, #ff6d00 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 171, 64, 0.4);
+}
+
 /* Override .nav-link-custom if it exists in JS usage */
 .nav-link-custom {
-  /* Inherit logic from .nav-tabs .nav-link above */
-  color: inherit;
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-family: 'Cinzel', serif;
+  font-weight: bold;
+  font-size: 1.25rem;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.nav-link-custom:hover {
+  color: var(--pride-gold) !important;
+  text-shadow: 0 0 10px rgba(255, 215, 64, 0.4);
+}
+
+.nav-link-custom.active {
+  color: var(--junior-pink);
+  border-bottom: 2px solid var(--junior-pink);
+}
+
+.glass-scroll {
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.glass-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.glass-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+/* Pro-Max Energy Meter */
+.energy-meter-container {
+  background: rgba(13, 46, 18, 0.6);
+  /* Dark translucent jungle green */
+  border-radius: 999px;
+  padding: 6px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(46, 125, 50, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+  height: 44px;
+  /* Fixed height container */
+  margin-top: 10px;
+}
+
+.energy-meter-bar {
+  height: 100%;
+  /* Fill container height minus padding */
+  border-radius: 999px;
+  /* Gradient flows through Junior colors */
+  background: linear-gradient(90deg, var(--junior-cyan), var(--junior-yellow), var(--junior-pink), var(--junior-cyan));
+  background-size: 300% 100%;
+  animation: energy-flow 3s infinite linear;
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Bouncy transition */
+  position: relative;
+  box-shadow: 0 0 20px rgba(233, 30, 99, 0.5);
+  /* Pink Glow default */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 15px;
+}
+
+.energy-text {
+  font-family: 'Fredoka One', cursive;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-size: 1.2rem;
+  white-space: nowrap;
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes energy-flow {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Shimmer overlay */
+.energy-meter-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.4) 50%,
+      rgba(255, 255, 255, 0) 60%);
+  z-index: 1;
+  background-size: 200% 200%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Vertical Energy Meter (New Layout) */
+.energy-meter-vertical {
+  width: 60px;
+  height: 400px;
+  /* Match media height approx */
+  background: rgba(13, 46, 18, 0.6);
+  border-radius: 30px;
+  padding: 6px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(46, 125, 50, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  /* Fill from bottom */
+  align-items: center;
+  margin: 0 auto;
+}
+
+.energy-meter-bar-vertical {
+  width: 100%;
+  border-radius: 30px;
+  background: linear-gradient(0deg, var(--junior-cyan), var(--junior-yellow), var(--junior-pink), var(--junior-cyan));
+  background-size: 100% 300%;
+  animation: energy-flow-vertical 3s infinite linear;
+  transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 20px rgba(233, 30, 99, 0.5);
+  position: relative;
+}
+
+.energy-text-vertical {
+  font-family: 'Fredoka One', cursive;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-size: 1.2rem;
+  z-index: 10;
+  margin-bottom: 10px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+@keyframes energy-flow-vertical {
+  0% {
+    background-position: 50% 100%;
+  }
+
+  100% {
+    background-position: 50% 0%;
+  }
+}
+
+/* Media Overlay Container */
+.media-overlay-container {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border-radius: 30px;
+  overflow: hidden;
+  border: 5px solid var(--junior-cyan);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.score-me-overlay {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: 80%;
+  max-width: 300px;
 }
