@@ -16,7 +16,11 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Install Hugging Face CLI
+        run: pip install huggingface_hub
+
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://anubhavagar:$HF_TOKEN@huggingface.co/spaces/anubhavagar/thewondersofthejungle master:main
+        run: |
+          huggingface-cli upload anubhavagar/thewondersofthejungle ./ ./ --repo-type space --token $HF_TOKEN --commit-message "Sync from GitHub (LFS support)"
