@@ -1,5 +1,8 @@
 # How to Run the Lion King Health Application
 
+"C:\Users\ur_an\AppData\Local\Programs\Python\Python310\python.exe" -m venv venvp
+
+
 Follow this step-by-step guide to get the application running on your computer.
 
 ## Prerequisites
@@ -31,11 +34,11 @@ The backend powers the logic for the health analysis.
     ```
 4.  Install the required Python libraries:
     ```bash
-    pip install -r backend/requirements.txt
+    pip install -r api/requirements.txt
     ```
 5.  Start the Backend Server:
     ```bash
-    python -m uvicorn backend.main:app --reload --port 8000
+    python -m uvicorn api.main:app --reload --port 8000
     ```
     *You should see a message saying "Application startup complete". Keep this terminal window open!*
 

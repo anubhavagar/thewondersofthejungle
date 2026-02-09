@@ -9,28 +9,30 @@ from api.config import settings
 
 router = APIRouter()
 
-# Initialize DB on start (simple approach)
-init_db()
-
 @router.post("/auth/request-otp")
 async def request_otp(request: OTPRequest):
-    # Generate OTP based on config length
-    import random
-    otp = "".join([str(random.randint(0, 9)) for _ in range(settings.OTP_LENGTH)])
-    
-    # Save to DB
-    from api.database import save_otp
-    save_otp(request.mobile, otp)
-    
-    # Simulation: Print to console (SMS)
-    print("\n" + "="*30)
-    print(f"🦁 JUNGLE OTP FOR {request.mobile}: {otp}")
-    
-    # Simulation: Send to Email (as requested)
-    print(f"📧 EMAIL SIMULATION: Sent to {settings.OTP_SENDER_EMAIL}")
-    print("="*30 + "\n")
-    
-    return {"message": f"OTP sent to {request.mobile} and {settings.OTP_SENDER_EMAIL} (Simulated)"}
+    try:
+        # Generate OTP based on config length
+        import random
+        otp = "".join([str(random.randint(0, 9)) for _ in range(settings.OTP_LENGTH)])
+        
+        # Save to DB
+        from api.database import save_otp
+        save_otp(request.mobile, otp)
+        
+        # Simulation: Print to console (SMS)
+        print("\n" + "="*30)
+        print(f"🦁 JUNGLE OTP FOR {request.mobile}: {otp}")
+        
+        # Simulation: Send to Email (as requested)
+        print(f"📧 EMAIL SIMULATION: Sent to {settings.OTP_SENDER_EMAIL}")
+        print("="*30 + "\n")
+        
+        return {"message": f"OTP sent to {request.mobile} and {settings.OTP_SENDER_EMAIL} (Simulated)"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to generate OTP: {str(e)}")
 
 @router.post("/auth/verify-otp")
 async def verify_otp(request: OTPVerifyRequest):

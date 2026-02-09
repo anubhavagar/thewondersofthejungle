@@ -3,16 +3,18 @@ fastapi==0.128.4
 uvicorn==0.40.0
 python-multipart==0.0.22
 
-# Computer Vision (CPU Only)
-mediapipe>=0.10.15
-tensorflow-cpu==2.16.1
-tf-keras==2.16.0
+# Computer Vision & AI Core
+# Pinned to ensure compatibility with Protobuf 3.x
+mediapipe==0.10.11
+tensorflow==2.16.1
+tf_keras==2.16.0
 deepface>=0.0.98
 
-# Image Processing (Headless)
-numpy>=1.26.4
-opencv-python-headless>=4.10.0.84
-protobuf>=3.20.3
+# Image Processing & Data
+# Must stay on 3.20.3 to avoid breaking MediaPipe .solutions
+protobuf==3.20.3
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
 
 # Utilities
 python-dotenv==1.2.1
@@ -20,3 +22,7 @@ pandas==2.3.3
 pydantic-settings==2.8.1
 psycopg2-binary==2.9.10
 vercel-blob>=0.4.0
+
+# Pinned for faster resolution
+jax==0.4.26
+jaxlib==0.4.26

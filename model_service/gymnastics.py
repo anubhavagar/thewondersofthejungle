@@ -12,9 +12,16 @@ class GymnasticsAnalyzer:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
         self.mp_face_mesh = mp.solutions.face_mesh
-        self.pose = self.mp_pose.Pose(
+        self.image_pose = self.mp_pose.Pose(
+            static_image_mode=True,
+            model_complexity=1,
+            smooth_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
+        self.video_pose = self.mp_pose.Pose(
             static_image_mode=False,
-            model_complexity=1, 
+            model_complexity=1,
             smooth_landmarks=True,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
@@ -240,7 +247,7 @@ class GymnasticsAnalyzer:
         print(f"Image shape: {image.shape}")
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        results = self.pose.process(image_rgb)
+        results = self.image_pose.process(image_rgb)
         
         if not results.pose_landmarks:
             print("No pose landmarks detected.")
@@ -315,7 +322,7 @@ class GymnasticsAnalyzer:
             if frame_idx % 5 != 0: continue # Process every 5th frame for speed
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pose_res = self.pose.process(frame_rgb)
+            pose_res = self.video_pose.process(frame_rgb)
             
             current_time = round(frame_idx / fps, 2)
             

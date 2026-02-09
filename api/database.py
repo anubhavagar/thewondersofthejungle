@@ -1,27 +1,46 @@
 import sqlite3
 import datetime
+import time
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from .config import settings
 import os
 
 # Database Connection Helper
-def get_db_connection():
+def get_db_connection(retries=10, delay=3):
     uri = settings.POSTGRES_URL
-    if uri.startswith("postgres://") or uri.startswith("postgresql://"):
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        # Vercel provides postgres://, but psycopg2 prefers postgresql://
-        if uri.startswith("postgres://"):
-            uri = uri.replace("postgres://", "postgresql://", 1)
-        # Use RealDictCursor to match sqlite3.Row behavior
-        return psycopg2.connect(uri, cursor_factory=RealDictCursor)
-    else:
-        import sqlite3
-        # Fallback to SQLite
-        db_path = uri.replace("sqlite:///", "") if uri.startswith("sqlite:///") else uri
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    last_error = None
+    
+    for i in range(retries):
+        try:
+            if uri.startswith("postgres://") or uri.startswith("postgresql://"):
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                # Vercel provides postgres://, but psycopg2 prefers postgresql://
+                if uri.startswith("postgres://"):
+                    uri = uri.replace("postgres://", "postgresql://", 1)
+                # Use RealDictCursor to match sqlite3.Row behavior
+                conn = psycopg2.connect(uri, cursor_factory=RealDictCursor)
+                logger.info("Successfully connected to PostgreSQL")
+                return conn
+            else:
+                import sqlite3
+                # Fallback to SQLite
+                db_path = uri.replace("sqlite:///", "") if uri.startswith("sqlite:///") else uri
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                logger.info(f"Successfully connected to SQLite: {db_path}")
+                return conn
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Database connection attempt {i+1} failed: {e}. Retrying in {delay}s...")
+            time.sleep(delay)
+    
+    logger.error(f"Failed to connect to database after {retries} attempts: {last_error}")
+    raise last_error
 
 import base64
 import uuid
@@ -35,6 +54,8 @@ def init_db():
     
     primary_key_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
     
+    datetime_type = "TIMESTAMP" if is_postgres else "DATETIME"
+    
     # Users Table
     cursor.execute(f'''
         CREATE TABLE IF NOT EXISTS users (
@@ -46,11 +67,11 @@ def init_db():
     ''')
     
     # OTPs Table (Temporary)
-    cursor.execute('''
+    cursor.execute(f'''
         CREATE TABLE IF NOT EXISTS otps (
             mobile TEXT PRIMARY KEY,
             otp TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp {datetime_type} DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     

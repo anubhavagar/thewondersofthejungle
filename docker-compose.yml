@@ -1,0 +1,37 @@
+services:
+  database:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: health_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      - POSTGRES_URL=postgresql://user:password@database:5432/health_db
+      - OTP_SENDER_EMAIL=anubhavagar@gmail.com
+    ports:
+      - "8000:8000"
+    depends_on:
+      - database
+    volumes:
+      - ./api/uploads:/app/api/uploads
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
