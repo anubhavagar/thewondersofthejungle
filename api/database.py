@@ -185,6 +185,42 @@ def init_db():
     conn.commit()
     conn.close()
 
+def list_tables():
+    """Diagnostic function to list all tables and their row counts."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if we are using Postgres or SQLite
+    is_postgres = hasattr(conn, "get_dsn_parameters")
+    
+    tables = []
+    try:
+        if is_postgres:
+            # Postgres query for public tables
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+            """)
+        else:
+            # SQLite query
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            
+        table_names = [row[0] if isinstance(row, tuple) else row['name'] for row in cursor.fetchall()]
+        
+        for name in table_names:
+            # Use separate cursors or close previous ones if needed, but here simple SELECT is fine
+            cursor.execute(f"SELECT COUNT(*) FROM {name}")
+            count = cursor.fetchone()[0]
+            tables.append({"table": name, "rows": count})
+            
+    except Exception as e:
+        print(f"Error listing tables: {e}")
+    finally:
+        conn.close()
+    
+    return tables
+
 def save_otp(mobile, otp):
     conn = get_db_connection()
     cursor = conn.cursor()

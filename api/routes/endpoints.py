@@ -4,10 +4,19 @@ from api.schemas.schemas import FaceAnalysisRequest, HealthDataRequest, HistoryR
 from model_service.vision import vision_model
 from model_service.health import health_model
 from model_service.gymnastics import gymnastics_analyzer # Real implementation
-from api.database import init_db, save_history, get_history, create_user, get_user_by_mobile, save_otp, verify_otp_db
+from api.database import init_db, save_history, get_history, create_user, get_user_by_mobile, save_otp, verify_otp_db, list_tables
 from api.config import settings
 
 router = APIRouter()
+
+@router.get("/diagnostics/db")
+async def db_diagnostics():
+    """Returns a list of tables and their row counts."""
+    try:
+        tables = list_tables()
+        return {"tables": tables, "count": len(tables)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/auth/request-otp")
 async def request_otp(request: OTPRequest):
