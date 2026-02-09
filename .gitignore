@@ -5,16 +5,31 @@ __pycache__/
 venv/
 .env
 *.db
+*.sqlite3
 
 # Node
 node_modules/
 dist/
 build/
 .DS_Store
+Thumbs.db
 
-# IDEs
+# IDEs & Tools
 .vscode/
 .idea/
+.agent/
+.gemini/
+.antigravity/
 
-# Backend uploads (Local only)
+# Backend uploads & Temp
 backend/uploads/
+temp/
+tmp/
+*.log
+
+# Workspace Specific
+lion_king_health.db
+verify_*.py
+verify_api.ps1
+backend-k8s.yaml
+frontend-k8s.yaml
