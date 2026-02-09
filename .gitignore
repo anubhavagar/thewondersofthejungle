@@ -22,7 +22,7 @@ Thumbs.db
 .antigravity/
 
 # Backend uploads & Temp
-backend/uploads/
+**/uploads/
 temp/
 tmp/
 *.log
