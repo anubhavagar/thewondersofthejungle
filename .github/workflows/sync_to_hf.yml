@@ -23,4 +23,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          huggingface-cli upload anubhavagar/thewondersofthejungle ./ ./ --repo-type space --token $HF_TOKEN --commit-message "Sync from GitHub (LFS support)"
+          python3 -m huggingface_hub.commands.huggingface_cli upload anubhavagar/thewondersofthejungle ./ ./ --repo-type space --token $HF_TOKEN --commit-message "Sync from GitHub (LFS support)"
