@@ -1,3 +1,12 @@
+---
+title: The Wonders of the Jungle
+emoji: 🦁
+colorFrom: green
+colorTo: yellow
+sdk: docker
+pinned: false
+---
+
 # Lion King Health Tracker 🦁
 
 A responsive web application that allows users to track their health with a fun Lion King theme!
