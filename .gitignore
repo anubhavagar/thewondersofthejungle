@@ -28,6 +28,7 @@ tmp/
 *.log
 
 # Workspace Specific
+docs/
 lion_king_health.db
 verify_*.py
 verify_api.ps1
