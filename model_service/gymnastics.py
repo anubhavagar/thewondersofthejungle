@@ -12,26 +12,44 @@ class GymnasticsAnalyzer:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
         self.mp_face_mesh = mp.solutions.face_mesh
-        self.image_pose = self.mp_pose.Pose(
-            static_image_mode=True,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        self.video_pose = self.mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
+        self._image_pose = None
+        self._video_pose = None
+        self._face_mesh = None
+
+    @property
+    def image_pose(self):
+        if self._image_pose is None:
+            self._image_pose = self.mp_pose.Pose(
+                static_image_mode=True,
+                model_complexity=1,
+                smooth_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+        return self._image_pose
+
+    @property
+    def video_pose(self):
+        if self._video_pose is None:
+            self._video_pose = self.mp_pose.Pose(
+                static_image_mode=False,
+                model_complexity=1,
+                smooth_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+        return self._video_pose
+
+    @property
+    def face_mesh(self):
+        if self._face_mesh is None:
+            self._face_mesh = self.mp_face_mesh.FaceMesh(
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+        return self._face_mesh
 
     def _calculate_angle(self, a, b, c):
         """Calculate angle between three points (tuples of x,y)."""

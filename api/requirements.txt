@@ -6,9 +6,6 @@ python-multipart==0.0.22
 # Computer Vision & AI Core
 # Pinned to ensure compatibility with Protobuf 3.x
 mediapipe==0.10.11
-tensorflow==2.16.1
-tf_keras==2.16.0
-deepface>=0.0.98
 
 # Image Processing & Data
 # Must stay on 3.20.3 to avoid breaking MediaPipe .solutions

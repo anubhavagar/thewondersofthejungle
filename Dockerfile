@@ -27,11 +27,6 @@ RUN apt-get update && apt-get install -y \
 COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download ML models for faster Space startup
-RUN python -c "import mediapipe as mp; \
-mp.solutions.pose.Pose(static_image_mode=True); \
-mp.solutions.face_mesh.FaceMesh(static_image_mode=True)"
-
 # Copy backend and model service code
 COPY api ./api
 COPY model_service ./model_service
