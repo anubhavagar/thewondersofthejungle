@@ -55,6 +55,7 @@ def init_db():
     primary_key_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
     
     datetime_type = "TIMESTAMP" if is_postgres else "DATETIME"
+    json_type = "JSONB" if is_postgres else "TEXT"
     
     # Users Table
     cursor.execute(f'''
@@ -91,6 +92,86 @@ def init_db():
         )
     ''')
     
+    # --- Gymnastics Specific Tables ---
+    
+    # Discipline Table (MAG, WAG, etc.)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_discipline (
+            id {primary_key_type},
+            name TEXT UNIQUE NOT NULL,
+            description TEXT
+        )
+    ''')
+    
+    # Apparatus Table (Floor, Vault, Bars, etc.)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_apparatus (
+            id {primary_key_type},
+            discipline_id INTEGER,
+            name TEXT NOT NULL,
+            code TEXT UNIQUE NOT NULL,
+            FOREIGN KEY (discipline_id) REFERENCES dim_discipline (id)
+        )
+    ''')
+    
+    # Skill Atlas (The Library of Recognized Skills)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_skill_atlas (
+            id {primary_key_type},
+            apparatus_id INTEGER,
+            skill_name TEXT NOT NULL,
+            difficulty_value REAL,
+            group_number INTEGER,
+            fig_id TEXT UNIQUE,
+            technical_requirements {json_type},
+            FOREIGN KEY (apparatus_id) REFERENCES dim_apparatus (id)
+        )
+    ''')
+    
+    # Biomechanical Thresholds (Angle/Posture data for vision engine)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_biomechanical_thresholds (
+            id {primary_key_type},
+            skill_id INTEGER,
+            joint_name TEXT NOT NULL,
+            ideal_angle REAL,
+            min_threshold REAL,
+            max_threshold REAL,
+            strictness_weight REAL DEFAULT 1.0,
+            FOREIGN KEY (skill_id) REFERENCES dim_skill_atlas (id)
+        )
+    ''')
+    
+    # Fault Map (What happens when thresholds are missed)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS dim_fault_map (
+            id {primary_key_type},
+            fault_code TEXT UNIQUE,
+            category TEXT, -- form, technical, landing
+            deduction_small REAL,
+            deduction_medium REAL,
+            deduction_large REAL,
+            description TEXT
+        )
+    ''')
+    
+    # Assessment Logs (The "Facts" of the analysis)
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS fact_assessment_logs (
+            id {primary_key_type},
+            user_id INTEGER,
+            skill_id INTEGER,
+            execution_score REAL,
+            difficulty_score REAL,
+            total_score REAL,
+            deduction_notes {json_type},
+            video_url TEXT,
+            timestamp {datetime_type} DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (skill_id) REFERENCES dim_skill_atlas (id)
+        )
+    ''')
+
     # Migrations (SQLite-only usually, but harmless for first-run Postgres)
     if not is_postgres:
         try:
