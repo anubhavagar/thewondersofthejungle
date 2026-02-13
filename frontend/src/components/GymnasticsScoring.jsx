@@ -21,6 +21,7 @@ const GymnasticsScoring = () => {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [category, setCategory] = useState(null);
+    const [holdDuration, setHoldDuration] = useState(2.0); // Default 2s for strength holds
     const [showCategoryModal, setShowCategoryModal] = useState(false);
 
     // Refs
@@ -67,8 +68,8 @@ const GymnasticsScoring = () => {
         }, 500);
 
         try {
-            // Send media_type, media_data and category
-            const response = await api.analyzeGymnastics(preview, mediaType, category);
+            // Send media_type, media_data, category and hold_duration
+            const response = await api.analyzeGymnastics(preview, mediaType, category, holdDuration);
             clearInterval(interval);
 
             if (!response.data || response.data.error) {
@@ -113,7 +114,19 @@ const GymnasticsScoring = () => {
         }
     };
 
+    const resultsRef = useRef(null); // Ref for auto-scrolling to results
+
+    useEffect(() => {
+        if (result && resultsRef.current) {
+            // value of 100 for timeout to ensure DOM render
+            setTimeout(() => {
+                resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }, [result]);
+
     const handleHoverScan = (time) => {
+
         if (videoPlayerRef.current) {
             videoPlayerRef.current.currentTime = time;
             videoPlayerRef.current.pause(); // Pause while scrubbing/hovering
@@ -305,8 +318,16 @@ const GymnasticsScoring = () => {
                     </div>
 
                     {/* WAG Control View Integration */}
-                    {/* WAG Control View Integration */}
-                    <WAGControlView analysisResult={result} mediaUrl={preview} mediaType={mediaType} />
+                    <WAGControlView
+                        analysisResult={result}
+                        mediaUrl={preview}
+                        mediaType={mediaType}
+                        scoringCategory={category || 'senior_elite'}
+                        setScoringCategory={setCategory}
+                        holdDuration={holdDuration}
+                        setHoldDuration={setHoldDuration}
+                        onReAnalyze={handleScore}
+                    />
 
                     <Card className="p-4 mx-auto text-start shadow-lg border-0" style={{ maxWidth: '600px', borderRadius: '30px', background: 'linear-gradient(135deg, #ffffff 0%, #fffde7 100%)' }}>
                         <div className="text-center mb-4">
@@ -414,6 +435,112 @@ const GymnasticsScoring = () => {
                                     </div>
                                 </Col>
                             </Row>
+
+                            {/* Judge's Rationale Section */}
+                            {/* Judge's Rationale Section */}
+                            {(result.d_score_rationale || result.e_score_rationale) && (
+                                <div className="mt-4 p-4 rounded-4 shadow-sm text-start" style={{ backgroundColor: '#fffde7', border: '1px solid #fbc02d', color: '#333' }}>
+                                    <h6 className="fw-bold mb-4 d-flex align-items-center" style={{ color: '#f57f17', letterSpacing: '0.5px' }}>
+                                        <span className="me-2" style={{ fontSize: '1.2rem' }}>📜</span> TECHNICAL JUDGING RATIONALE
+                                    </h6>
+
+                                    <div className="d-flex flex-column gap-4">
+                                        {/* D-Score Structured Rationale */}
+                                        {result.d_score_rationale && typeof result.d_score_rationale === 'object' && (
+                                            <div className="p-3 rounded-4 shadow-sm" style={{ backgroundColor: 'white', border: '1px solid rgba(233, 30, 99, 0.2)' }}>
+                                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                                    <span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: 'var(--junior-pink)', fontSize: '0.75rem' }}>D-SCORE (DIFFICULTY)</span>
+                                                    <span className="fw-mono fw-bold" style={{ color: 'var(--junior-pink)' }}>{result.d_score_rationale.formula}</span>
+                                                </div>
+
+                                                <div className="table-responsive">
+                                                    <table className="table table-sm table-borderless mb-0" style={{ fontSize: '0.85rem' }}>
+                                                        <thead className="text-muted border-bottom">
+                                                            <tr>
+                                                                <th className="fw-normal py-2">Rule / Category</th>
+                                                                <th className="fw-normal py-2">Technical Justification</th>
+                                                                <th className="text-end fw-normal py-2">Points</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {result.d_score_rationale.reasons?.map((reason, idx) => (
+                                                                <tr key={idx} className="border-bottom opacity-75">
+                                                                    <td className="fw-bold py-3" style={{ color: '#555' }}>{reason.label}</td>
+                                                                    <td className="text-muted py-3">{reason.text}</td>
+                                                                    <td className="text-end fw-bold py-3" style={{ color: 'var(--junior-pink)', fontSize: '1rem' }}>{reason.value}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                        <tfoot>
+                                                            <tr style={{ borderTop: '2px solid rgba(233, 30, 99, 0.2)' }}>
+                                                                <td colSpan="2" className="text-end pt-3 fw-bold text-muted">FINAL DIFFICULTY SCORE:</td>
+                                                                <td className="text-end pt-3 fw-bold" style={{ color: 'var(--junior-pink)', fontSize: '1.25rem' }}>
+                                                                    {result.d_score_rationale.values?.total?.toFixed(1) || '0.0'}
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* E-Score Structured Rationale */}
+                                        {result.e_score_rationale && typeof result.e_score_rationale === 'object' && (
+                                            <div className="p-3 rounded-4 shadow-sm" style={{ backgroundColor: 'white', border: '1px solid rgba(70, 210, 225, 0.2)' }}>
+                                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                                    <span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: 'var(--junior-cyan)', fontSize: '0.75rem' }}>E-SCORE (EXECUTION)</span>
+                                                    <span className="fw-mono fw-bold" style={{ color: 'var(--junior-cyan)' }}>{result.e_score_rationale.formula}</span>
+                                                </div>
+
+                                                <div className="table-responsive">
+                                                    <table className="table table-sm table-borderless mb-0" style={{ fontSize: '0.85rem' }}>
+                                                        <thead className="text-muted border-bottom">
+                                                            <tr>
+                                                                <th className="fw-normal py-2">Fault Type</th>
+                                                                <th className="fw-normal py-2">Clinical Observation</th>
+                                                                <th className="text-end fw-normal py-2">Deduction</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr className="border-bottom opacity-75">
+                                                                <td className="fw-bold py-3" style={{ color: '#555' }}>Base Score</td>
+                                                                <td className="text-muted py-3">{result.e_score_rationale.base_reason || "Standard FIG Starting Execution"}</td>
+                                                                <td className="text-end fw-bold py-3" style={{ color: '#888' }}>{(result.e_score_rationale.values?.base || 10.0).toFixed(1)}</td>
+                                                            </tr>
+                                                            {result.e_score_rationale.reasons?.map((reason, idx) => (
+                                                                <tr key={idx} className="border-bottom opacity-75">
+                                                                    <td className="fw-bold py-3" style={{ color: '#555' }}>{reason.label}</td>
+                                                                    <td className="text-muted py-3">{reason.text}</td>
+                                                                    <td className="text-end fw-bold py-3 text-danger" style={{ fontSize: '1rem' }}>{reason.value}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                        <tfoot>
+                                                            <tr style={{ borderTop: '2px solid rgba(70, 210, 225, 0.2)' }}>
+                                                                <td colSpan="2" className="text-end pt-3 fw-bold text-muted">FINAL EXECUTION SCORE:</td>
+                                                                <td className="text-end pt-3 fw-bold" style={{ color: 'var(--junior-cyan)', fontSize: '1.25rem' }}>
+                                                                    {result.e_score_rationale.values?.total?.toFixed(1) || '10.0'}
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+                                        <span className="x-small text-muted fst-italic" style={{ fontSize: '0.7rem' }}>
+                                            * Technical Analysis generated via FIG Code of Points 2025-2028 Protocol.
+                                        </span>
+                                        {(result.d_score_rationale?.target_range || result.e_score_rationale?.target_range) && (
+                                            <span className="badge bg-light text-dark border p-2" style={{ fontSize: '0.65rem' }}>
+                                                🏆 TARGET RANGE: {result.d_score_rationale?.target_range || result.e_score_rationale?.target_range}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Recognized Skills List */}
                             {result.d_score_breakdown?.top_8_skills && result.d_score_breakdown.top_8_skills.length > 0 && (
@@ -614,7 +741,7 @@ const GymnasticsScoring = () => {
                             variant="light"
                             className="p-3 fs-5 rounded-4 shadow-sm border-2"
                             style={{ borderColor: 'var(--junior-cyan)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("U8 (Tiny Tots)"); setShowCategoryModal(false); }}
+                            onClick={() => { setCategory("u8_tiny_tots"); setShowCategoryModal(false); }}
                         >
                             👶 U8 (Tiny Tots)
                         </Button>
@@ -622,7 +749,7 @@ const GymnasticsScoring = () => {
                             variant="light"
                             className="p-3 fs-5 rounded-4 shadow-sm border-2"
                             style={{ borderColor: 'var(--junior-cyan)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("U10 (Beginner)"); setShowCategoryModal(false); }}
+                            onClick={() => { setCategory("u10_beginner"); setShowCategoryModal(false); }}
                         >
                             🐣 U10 (Beginner)
                         </Button>
@@ -630,7 +757,7 @@ const GymnasticsScoring = () => {
                             variant="light"
                             className="p-3 fs-5 rounded-4 shadow-sm border-2"
                             style={{ borderColor: 'var(--junior-yellow)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("U12 (Sub Junior)"); setShowCategoryModal(false); }}
+                            onClick={() => { setCategory("u12_sub_junior"); setShowCategoryModal(false); }}
                         >
                             🦁 U12 (Sub Junior)
                         </Button>
@@ -638,7 +765,7 @@ const GymnasticsScoring = () => {
                             variant="light"
                             className="p-3 fs-5 rounded-4 shadow-sm border-2"
                             style={{ borderColor: 'var(--junior-yellow)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("U14 (Intermediate)"); setShowCategoryModal(false); }}
+                            onClick={() => { setCategory("u14_intermediate"); setShowCategoryModal(false); }}
                         >
                             🐯 U14 (Intermediate)
                         </Button>
@@ -646,7 +773,7 @@ const GymnasticsScoring = () => {
                             variant="light"
                             className="p-3 fs-5 rounded-4 shadow-sm border-2"
                             style={{ borderColor: 'var(--junior-pink)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("Senior (Elite)"); setShowCategoryModal(false); }}
+                            onClick={() => { setCategory("senior_elite"); setShowCategoryModal(false); }}
                         >
                             👑 Senior (Elite)
                         </Button>

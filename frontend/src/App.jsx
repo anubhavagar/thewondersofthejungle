@@ -218,10 +218,14 @@ function App() {
                                                             : 'frame-energy-med'
                                                         }`}>
                                                         <img
-                                                            src={`http://localhost:8000${selectedDetail.image_path}`}
+                                                            src={selectedDetail.image_path}
                                                             className="w-100"
                                                             style={{ display: 'block' }}
                                                             alt="Historical Insight"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                e.target.parentElement.innerHTML = '<div class="insight-avatar-placeholder" style="font-size: 5rem; padding: 2rem;">🦁</div>';
+                                                            }}
                                                         />
                                                     </div>
                                                     <div className="mt-3 text-center opacity-75">

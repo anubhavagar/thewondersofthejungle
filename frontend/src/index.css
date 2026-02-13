@@ -697,10 +697,29 @@ h6 {
 
 .score-me-overlay {
   position: absolute;
-  bottom: 20px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 100;
-  width: 80%;
-  max-width: 300px;
+  width: auto;
+  min-width: 200px;
+}
+
+/* Custom Scrollbar for Timeline */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--pride-gold);
 }

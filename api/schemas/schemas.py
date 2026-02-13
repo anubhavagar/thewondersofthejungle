@@ -23,6 +23,7 @@ class GymnasticsAnalysisRequest(BaseModel):
     media_data: str # Base64 encoded image or video (or dummy identifier for sim)
     media_type: str # 'image' or 'video'
     category: Optional[str] = "Senior" # e.g. "Under 10", "Junior", "Senior"
+    hold_duration: Optional[float] = 2.0 # Minimum 2s for full credit
 
 class OTPRequest(BaseModel):
     mobile: str

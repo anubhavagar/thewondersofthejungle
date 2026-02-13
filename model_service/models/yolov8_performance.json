@@ -1,0 +1,23 @@
+{
+  "model": "YOLOv8m",
+  "epochs": 50,
+  "batch_size": 16,
+  "image_size": 640,
+  "classes": [
+    "Balance_Beam",
+    "Horizontal_Bar",
+    "Parallel_Bars",
+    "Pommel_Horse",
+    "Still_Rings",
+    "Uneven_Bars",
+    "Vault"
+  ],
+  "num_classes": 7,
+  "trained_on": "2026-02-11T20:00:48.762198",
+  "metrics": {
+    "map50": 0.7307795637448308,
+    "map50_95": 0.47840195633236776,
+    "precision": 0.7394427987831642,
+    "recall": 0.635891505452926
+  }
+}

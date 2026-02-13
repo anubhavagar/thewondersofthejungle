@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 venv/
+venv_training/
 .env
 *.db
 *.sqlite3
@@ -32,5 +33,18 @@ docs/
 lion_king_health.db
 verify_*.py
 verify_api.ps1
+debug_*.py
+test_*.py
 backend-k8s.yaml
 frontend-k8s.yaml
+
+# Training Data & Models
+gym_data/
+**/yolo_training/
+**/trained_model/
+**/*.h5
+**/*.tflite
+**/*.pt
+**/*.png
+.ipynb_checkpoints/
+**/__pycache__/

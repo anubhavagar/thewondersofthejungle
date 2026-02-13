@@ -1,69 +1,54 @@
----
-title: The Wonders of the Jungle
-emoji: 🦁
-colorFrom: green
-colorTo: yellow
-sdk: docker
-pinned: false
----
+# 🤸 Gymnastics Apparatus Scorer
 
-# Lion King Health Tracker 🦁
+A high-performance AI system for detecting gymnastics apparatus and analyzing athlete performance. The project uses MediaPipe for pose estimation and a custom YOLOv8 model for specialized apparatus detection.
 
-A responsive web application that allows users to track their health with a fun Lion King theme!
+## 📊 Model Performance: YOLOv8m
 
-## Project Structure
+Our custom-trained YOLOv8 medium model achieves high accuracy in identifying key gymnastics equipment:
 
-- `backend/`: Python FastAPI application for analysis logic.
-- `frontend/`: React + Vite application for the user interface.
-- `model_service/`: Simulated AI model logic for health analysis.
+| Metric | Value |
+| :--- | :--- |
+| **mAP50** | 0.7308 |
+| **mAP50-95** | 0.4784 |
+| **Precision** | 0.7394 |
+| **Recall** | 0.6359 |
 
-## Prerequisites
+**Target Classes:** Pommel Horse, Still Rings, Vault, Parallel Bars, Horizontal Bar, Uneven Bars, Balance Beam.
 
-- **Python 3.8+**
-- **Node.js** and **npm** (Required for Frontend)
+## 🚀 Project Structure
 
-## Setup Instructions
+- `api/`: FastAPI backend for specialized analysis logic and scoring.
+- `frontend/`: React + Vite application for the judging interface and control view.
+- `model_service/`: AI model logic, including:
+    - `gymnastics.py`: Core analysis engine using MediaPipe + YOLO.
+    - `train_yolov8_colab.py`: Local training script for the apparatus detector.
+- `gym_data/`: Dataset storage for training and validation.
+
+## 🛠️ Setup Instructions
 
 ### 1. Backend Setup
-
-Navigate to the project root and install dependencies:
-
 ```bash
 pip install -r backend/requirements.txt
-```
-
-Run the backend server:
-
-```bash
 python -m uvicorn backend.main:app --reload --port 8000
 ```
-The API will be available at `http://localhost:8000`.
 
 ### 2. Frontend Setup
-
-Navigate to the frontend directory:
-
 ```bash
 cd frontend
-```
-
-Install dependencies:
-
-```bash
 npm install
-```
-*(Note: If `npm` is not installed, please install Node.js from [nodejs.org](https://nodejs.org/))*
-
-Run the development server:
-
-```bash
 npm run dev
 ```
-Open your browser to the URL shown (usually `http://localhost:5173`).
 
-## Features
+### 3. Model Training (Local)
+To retrain the apparatus detector on your local GPU:
+```bash
+python model_service/train_yolov8_colab.py
+```
+*Requires NVIDIA GPU with CUDA support and the `ultralytics` package.*
 
-- **Lion King Theme**: Immerse yourself in the Pride Lands with custom colors and fonts.
-- **Simba's Eye (Camera)**: Capture a photo for a simulated health scan.
-- **Circle of Life Data**: Connect (simulate) Google Fit data.
-- **Rafiki's Advice**: Get personalized health feedback based on your scan and data.
+## ✨ Features
+
+- **Real-time Apparatus Tracking**: Automatically locks onto equipment using custom YOLOv8.
+- **WAG/MAG Scoring**: Automated D-score and E-score contribution analysis.
+- **Skeleton Overlay**: High-precision 3D pose visualization for biomechanical analysis.
+- **Perspective Calibration**: Auto-calibrates pixel measurements to real-world centimeters based on apparatus dimensions.

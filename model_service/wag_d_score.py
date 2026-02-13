@@ -20,60 +20,140 @@ class WAGDScoreCalculator:
             "CR4": "Dismount"
         }
 
-    def calculate_d_score(self, identified_skills: List[Dict]) -> Dict:
+    def calculate_d_score(self, identified_skills: List[Dict], category: str = "Senior") -> Dict:
         """
-        Calculate D-Score from a list of recognized skills.
+        Calculate D-Score from a list of recognized skills based on Category.
         
-        Args:
-            identified_skills: List of dicts, e.g. [{"name": "Split Leap", "dv": 0.5, "type": "dance"}]
-            
-        Returns:
-            Dict with breakdown: { "total_d_score": float, "top_8_total": float, "cv": float, "cr": float, "breakdown": ... }
+        Senior/U14/U12: Standard FIG (D = Top 8 DV + CR + CV)
+        U10: Compulsory Model (D = 10.0 - Deductions for missing skills/requirements)
         """
-        # 1. Sort by Difficulty Value (DV) descending
-        # Filter out skills with 0 DV or unrecognized
-        valid_skills = [s for s in identified_skills if s.get('dv', 0) > 0]
-        valid_skills.sort(key=lambda x: x['dv'], reverse=True)
-        
-        # 2. Take Top 8
-        top_8 = valid_skills[:8]
-        top_8_total = sum(s['dv'] for s in top_8)
-        
-        # 3. Calculate CR (Simplified for now based on skill types present)
-        # We assume specific tags in the skill list to identify CRs
+        # Initialize results
+        total_d_score = 0.0
+        top_8_total = 0.0
         cr_score = 0.0
+        cv_score = 0.0
         cr_fulfilled = []
         
+        valid_skills = [s for s in identified_skills if s.get('dv', 0) > 0]
+        valid_skills.sort(key=lambda x: x['dv'], reverse=True)
+        top_8 = valid_skills[:8]
+        
         skill_types_present = set(s.get('type', '') for s in valid_skills)
-        
-        # Heuristic CR Logic (Placeholder)
-        if 'dance' in skill_types_present: 
-            cr_score += 0.5
-            cr_fulfilled.append("CR1 (Dance)")
-        if 'acro' in skill_types_present: 
-            cr_score += 0.5
-            cr_fulfilled.append("CR2 (Acro)")
-        if 'turn' in skill_types_present: 
-            cr_score += 0.5
-            cr_fulfilled.append("CR3 (Turn)")
-        if 'dismount' in skill_types_present:
-            cr_score += 0.5
-            cr_fulfilled.append("CR4 (Dismount)")
+
+        # 1. CATEGORY: U10 (Compulsory Logic)
+        if category == "U10":
+            # ... (U10 logic already exists) ...
+            base_d = 10.0
+            deductions = []
             
-        # 4. Connection Value (CV)
-        # This requires sequence analysis (e.g., direct connection between skills)
-        # For now, we return 0.0 or allow it to be passed in
-        cv_score = 0.0
-        
-        total_d_score = round(top_8_total + cr_score + cv_score, 3)
-        
+            check_map = {
+                "dance": "Dance Requirement",
+                "acro": "Acrobatic Requirement",
+                "turn": "Turn Requirement"
+            }
+            
+            for s_type, label in check_map.items():
+                if s_type not in skill_types_present:
+                    base_d -= 1.0
+                    deductions.append(f"Missing {label} (-1.0)")
+            
+            # Penalize for low volume (fewer than 4 skills)
+            if len(valid_skills) < 4:
+                penalty = (4 - len(valid_skills)) * 0.5
+                base_d -= penalty
+                deductions.append(f"Insufficient Skill Volume (-{penalty:.1f})")
+
+            total_d_score = max(0.0, base_d)
+            
+            structured_rationale = {
+                "formula": "D = 10.0 - [Missing Requirements]",
+                "values": {
+                    "base": 10.0,
+                    "deductions": 10.0 - total_d_score,
+                    "total": total_d_score
+                },
+                "reasons": [{"label": "Compulsory Fault", "text": d, "value": ""} for d in deductions]
+            }
+            if not deductions:
+                structured_rationale["reasons"].append({"label": "Execution", "text": "All compulsory requirements met", "value": "+10.0"})
+
+        # 2. CATEGORY: U8 (Tiny Tots - Participation Only)
+        elif category == "U8" or "tiny" in category.lower():
+            total_d_score = 0.0
+            structured_rationale = {
+                "formula": "Participation-Based Validation",
+                "values": {"base": 0, "total": 0},
+                "reasons": [
+                    {
+                        "label": "Foundation",
+                        "text": f"Excellent participation detected! {len(valid_skills)} skill(s) performed.",
+                        "value": "AWARDED"
+                    },
+                    {
+                        "label": "Spirit",
+                        "text": "Great focus and technical effort for age group.",
+                        "value": "GOLD"
+                    }
+                ]
+            }
+
+        # 3. CATEGORY: Senior / U14 / U12 (FIG Standard)
+        else:
+            top_8_total = sum(s['dv'] for s in top_8)
+            
+            # CR Logic
+            if 'dance' in skill_types_present: 
+                cr_score += 0.5
+                cr_fulfilled.append(self.cr_definitions["CR1"])
+            if 'acro' in skill_types_present:
+                cr_score += 0.5
+                cr_fulfilled.append(self.cr_definitions["CR2"])
+            if 'turn' in skill_types_present:
+                cr_score += 0.5
+                cr_fulfilled.append(self.cr_definitions["CR3"])
+            if len(valid_skills) >= 5: # Assuming dismount is present if enough skills
+                cr_score += 0.5
+                cr_fulfilled.append(self.cr_definitions["CR4"])
+            
+            total_d_score = top_8_total + cr_score + cv_score
+            dv_names = ", ".join([s['name'] for s in top_8]) if top_8 else "None"
+            dv_count = len(top_8)
+
+            structured_rationale = {
+                "formula": "D = [DV] + [CR] + [CV]",
+                "values": {
+                    "dv": top_8_total,
+                    "cr": cr_score,
+                    "cv": cv_score,
+                    "total": total_d_score
+                },
+                "reasons": [
+                    {
+                        "label": "Difficulty Value (DV)",
+                        "text": f"Recognized {dv_count} element(s) ({dv_names})",
+                        "value": f"+{top_8_total:.1f}"
+                    },
+                    {
+                        "label": "Comp. Requirements (CR)",
+                        "text": (", ".join(cr_fulfilled) if cr_fulfilled else "No requirements met"),
+                        "value": f"+{cr_score:.1f}"
+                    },
+                    {
+                        "label": "Connection Value (CV)",
+                        "text": "No eligible connections detected",
+                        "value": f"+{cv_score:.1f}"
+                    }
+                ]
+            }
+
         return {
             "total_d_score": total_d_score,
             "top_8_total": top_8_total,
             "top_8_skills": [s['name'] for s in top_8],
             "cr_score": cr_score,
             "cr_fulfilled": cr_fulfilled,
-            "cv_score": cv_score
+            "cv_score": cv_score,
+            "rationale": structured_rationale
         }
 
 # Example Usage

@@ -17,10 +17,11 @@ const LatestInsights = ({ history, onSelectDetail }) => {
 
     return (
         <div className="latest-insights-container">
-            <h2 className="mb-4 d-flex align-items-center">
+            <h2 className="mb-3 d-flex align-items-center">
                 <Zap size={24} className="me-2 text-warning" />
-                Last 3 clicks
+                Private Jungle Records <span style={{ fontSize: '0.6em', color: 'white', opacity: 0.7 }}>(recent 3)</span>
             </h2>
+            <hr className="mb-4" style={{ borderTop: '2px solid rgba(255, 215, 64, 0.3)', opacity: 1 }} />
             <div className="d-flex flex-column gap-3">
                 {latest.map((entry, idx) => (
                     <div
@@ -40,9 +41,13 @@ const LatestInsights = ({ history, onSelectDetail }) => {
                                     >
                                         {entry.image_path ? (
                                             <img
-                                                src={`http://localhost:8000${entry.image_path}`}
+                                                src={entry.image_path}
                                                 alt="User"
                                                 className="insight-avatar"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.parentElement.innerHTML = '<div class="insight-avatar-placeholder">🦁</div>';
+                                                }}
                                             />
                                         ) : (
                                             <div className="insight-avatar-placeholder">🦁</div>

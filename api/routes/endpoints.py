@@ -100,7 +100,8 @@ async def analyze_gymnastics(request: GymnasticsAnalysisRequest):
         results = gymnastics_analyzer.analyze_media(
             media_data=request.media_data, 
             media_type=request.media_type, 
-            category=request.category
+            category=request.category,
+            hold_duration=request.hold_duration
         )
         return results
     except Exception as e:

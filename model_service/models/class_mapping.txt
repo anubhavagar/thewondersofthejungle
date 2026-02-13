@@ -1,0 +1,7 @@
+0: balance_beam
+1: horizontal_bar
+2: parallel_bars
+3: pommel_horse
+4: still_rings
+5: uneven_bars
+6: vault

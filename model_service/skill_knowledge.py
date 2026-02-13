@@ -30,17 +30,37 @@ SKILL_DATA = {
         "elementGroup": 2,
         "description": "A high-level static strength hold where the body is held parallel to the ground, supported only by the hands.",
         "technicalRequirements": [
-            "Body must be perfectly horizontal.",
+            "Body must be perfectly horizontal (shoulders and hips level).",
             "Arms must be fully locked (no elbow flexion).",
-            "Protract the scapula to create a slight 'hump' in the upper back."
+            "Scapula protraction for core engagement."
         ],
         "focusAnatomy": ["Anterior Deltoids", "Serratus Anterior", "Core Stabilizers"],
         "commonDeductions": [
             { "penalty": 0.1, "reason": "Hips slightly above or below shoulder height" },
-            { "penalty": 0.3, "reason": "Bent knees or touching the floor" },
-            { "penalty": 0.5, "reason": "Bent arms (pumping the planche)" }
+            { "penalty": 0.3, "reason": "Bent knees or body not horizontal" },
+            { "penalty": 0.3, "reason": "Bent arms" }
         ],
         "technicalCue": "Lean forward until your center of gravity is over your wrists and push the floor away."
+    },
+
+    "Press Handstand": {
+        "name": "Press Handstand",
+        "category": "Strength / Statics",
+        "difficulty": "B",
+        "elementGroup": 1,
+        "description": "Moving from a support or planche position into a handstand using pure strength, without a kick.",
+        "technicalRequirements": [
+            "Controlled movement throughout the press.",
+            "Arms must remain fully locked.",
+            "Body must pass through a controlled horizontal or angled phase."
+        ],
+        "focusAnatomy": ["Deltoids", "Lower Traps", "Core", "Hip Flexors"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Bent arms during the press" },
+            { "penalty": 0.1, "reason": "Loss of control / wobbling" },
+            { "penalty": 0.3, "reason": "Using a kick or momentum (not a pure press)" }
+        ],
+        "technicalCue": "Shift your weight forward and use your shoulders to lift your hips over your head."
     },
 
     "Handstand": {
@@ -101,5 +121,126 @@ SKILL_DATA = {
             { "penalty": 0.5, "reason": "Touching the rings with the body (on rings)" }
         ],
         "technicalCue": "Aggressively protract the shoulders and 'hug' the air beneath you."
+    },
+    
+    "Pommel Support": {
+        "name": "Pommel Support",
+        "category": "Statics",
+        "difficulty": "A",
+        "elementGroup": 1,
+        "description": "A basic support position on the pommel horse.",
+        "technicalRequirements": [
+            "Arms must be locked.",
+            "Body must maintain a straight line.",
+            "Neutral head position."
+        ],
+        "focusAnatomy": ["Triceps", "Shoulders", "Core"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Bent elbows" },
+            { "penalty": 0.1, "reason": "Hips sagging" }
+        ],
+        "technicalCue": "Keep your arms locked and look straight ahead."
+    },
+    
+    "Pommel Flair/Circle": {
+        "name": "Pommel Flair/Circle",
+        "category": "Dynamic",
+        "difficulty": "C",
+        "elementGroup": 2,
+        "description": "A circular movement of the legs around the horse.",
+        "technicalRequirements": [
+            "Lifting of the body during the transition.",
+            "Wide leg spread (flair).",
+            "Smooth rotation."
+        ],
+        "focusAnatomy": ["Core", "Shoulder Girdle", "Hip Flexors"],
+        "commonDeductions": [
+            { "penalty": 0.3, "reason": "Touching the horse with legs" },
+            { "penalty": 0.1, "reason": "Insufficient height" }
+        ],
+        "technicalCue": "Drive your hips up as the legs sweep through."
+    },
+    
+    "Straddle Split": {
+        "name": "Straddle Split",
+        "category": "Flexibility",
+        "difficulty": "B",
+        "elementGroup": 3,
+        "description": "A split position with legs extended sideways, often performed as a jump or leap.",
+        "technicalRequirements": [
+            "Legs must be at or above 180°.",
+            "Torso should remain upright or slightly leaned forward for balance.",
+            "Feet must be pointed."
+        ],
+        "focusAnatomy": ["Adductors", "Hamstrings", "Hip Abductors"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Insufficient leg spread (< 180°)" },
+            { "penalty": 0.1, "reason": "Soft knees" }
+        ],
+        "technicalCue": "Engage your glutes to rotate the hips and push the legs out wide."
+    },
+
+    "L-Sit": {
+        "name": "L-Sit",
+        "category": "Statics",
+        "difficulty": "A",
+        "elementGroup": 1,
+        "description": "A support position where the legs are held horizontal, forming an 'L' shape with the torso.",
+        "technicalRequirements": [
+            "Legs must be perfectly horizontal (Horizonation).",
+            "Arms must be fully locked (Straight Arms).",
+            "Legs must be fully extended (Straight Legs).",
+            "Toes must be pointed."
+        ],
+        "focusAnatomy": ["Core", "Hip Flexors", "Triceps", "Quads"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Bent arms/legs" },
+            { "penalty": 0.3, "reason": "Legs below horizontal" },
+            { "penalty": 0.1, "reason": "Pointed toes missing" }
+        ],
+        "technicalCue": "Depress your shoulders and compress your abs to lift the legs to horizontal."
+    },
+    
+    "Straddle L-Sit": {
+        "name": "Straddle L-Sit",
+        "category": "Statics",
+        "difficulty": "B",
+        "elementGroup": 1,
+        "description": "A support position on parallel bars or floor where legs are spread wide and held horizontal.",
+        "technicalRequirements": [
+            "Wide leg spread (usually > 90°).",
+            "Legs must be at or above horizontal.",
+            "Arms fully locked.",
+            "Torso vertical."
+        ],
+        "focusAnatomy": ["Core", "Hip Abductors", "Triceps"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Insufficient leg spread" },
+            { "penalty": 0.3, "reason": "Legs below horizontal" },
+            { "penalty": 0.1, "reason": "Bent knees" }
+        ],
+        "technicalCue": "Push the bars away and pull your hips forward while spreading your legs wide."
+    },
+
+    "V-Sit": {
+        "name": "V-Sit",
+        "category": "Statics / Flexibility",
+        "difficulty": "B",
+        "elementGroup": 1,
+        "description": "A high-level support position where the legs are held significantly above horizontal, forming a 'V' shape with the torso.",
+        "technicalRequirements": [
+            "Legs held at 45° above horizontal or higher.",
+            "Straight knees and pointed toes.",
+            "Hold for 2 seconds."
+        ],
+        "cv_thresholds": {
+            "min_hip_angle": 45,
+            "hold_frames": 60 
+        },
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Angle between 0° and 45°" },
+            { "penalty": 0.3, "reason": "Bent knees" }
+        ],
+        "technicalCue": "Compress your core as hard as possible and pull your feet toward your face while keeping arms locked."
     }
 }
