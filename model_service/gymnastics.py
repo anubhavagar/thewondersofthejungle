@@ -286,6 +286,35 @@ class GymnasticsAnalyzer:
             else:
                 print("GymnasticsAnalyzer: Classification model not found (optional)")
             
+            # Load Skill Detection Model (YOLOv8 TFLite)
+            skill_model_path = os.path.join(os.path.dirname(__file__), "models", "trained_model_skill", "best_float32.tflite")
+            self.skill_interpreter = None
+            self.skill_classes = ["BL", "FL", "HS", "IN-IRON-C", "IRON-C", "L-CROSS", "LS", "M-UP", "PN", "VS"]
+            self.skill_label_map = {
+                "BL": "Back Lever",
+                "FL": "Front Lever",
+                "HS": "Handstand",
+                "IN-IRON-C": "Inverted Iron Cross",
+                "IRON-C": "Iron Cross",
+                "L-CROSS": "L-Cross",
+                "LS": "L-Sit",
+                "M-UP": "Muscle Up",
+                "PN": "Planche",
+                "VS": "V-Sit"
+            }
+
+            if os.path.exists(skill_model_path) and tf is not None:
+                try:
+                    self.skill_interpreter = tf.lite.Interpreter(model_path=skill_model_path)
+                    self.skill_interpreter.allocate_tensors()
+                    self.skill_input_details = self.skill_interpreter.get_input_details()
+                    self.skill_output_details = self.skill_interpreter.get_output_details()
+                    print("GymnasticsAnalyzer: YOLOv8 Skill Detection model loaded successfully.")
+                except Exception as e:
+                    print(f"GymnasticsAnalyzer: Error loading skill model: {e}")
+            else:
+                print("GymnasticsAnalyzer: Skill model file not found or TensorFlow missing.")
+            
             # Person Tracking State (for video analysis)
             self.tracked_person_bbox = None  # Cache the performer's bounding box
             self.tracking_enabled = False    # Enable tracking mode for videos
@@ -931,6 +960,100 @@ class GymnasticsAnalyzer:
 
         return best_apparatus
 
+    def detect_skill_yolo(self, frame, conf_threshold=0.25):
+        """
+        Detect gymnastics skills using the YOLOv8 TFLite model.
+        """
+        if self.skill_interpreter is None:
+            return None
+
+        try:
+            h, w, _ = frame.shape
+            # 1. Preprocess
+            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            input_shape = self.skill_input_details[0]['shape'] # [1, 640, 640, 3]
+            
+            # Check for NCHW vs NHWC
+            if input_shape[1] == 3: # NCHW
+                img_resized = cv2.resize(img_rgb, (input_shape[3], input_shape[2]))
+                img_input = img_resized.astype(np.float32) / 255.0
+                img_input = np.transpose(img_input, (2, 0, 1)) # [3, 640, 640]
+            else: # NHWC
+                img_resized = cv2.resize(img_rgb, (input_shape[2], input_shape[1]))
+                img_input = img_resized.astype(np.float32) / 255.0
+            
+            img_input = np.expand_dims(img_input, axis=0)
+
+            # 2. Run Inference
+            self.skill_interpreter.set_tensor(self.skill_input_details[0]['index'], img_input)
+            self.skill_interpreter.invoke()
+            output_data = self.skill_interpreter.get_tensor(self.skill_output_details[0]['index']) # [1, 14, 8400]
+            
+            # 3. Postprocess
+            output_data = np.squeeze(output_data) # [14, 8400]
+            boxes = output_data[:4, :].T # [8400, 4] -> [cx, cy, w, h]
+            scores = output_data[4:, :].T # [8400, 10]
+            
+            class_ids = np.argmax(scores, axis=1)
+            confidences = np.max(scores, axis=1)
+            
+            mask = confidences > conf_threshold
+            boxes = boxes[mask]
+            confidences = confidences[mask]
+            class_ids = class_ids[mask]
+            
+            if len(boxes) == 0:
+                return None
+                
+            # NMS requires [x, y, w, h] or similar depending on version. 
+            # In YOLOv8 tflite, it's often [cx, cy, w, h]. 
+            # We'll convert to [x, y, w, h] for cv2.dnn.NMSBoxes
+            nms_boxes = []
+            for box in boxes:
+                cx, cy, bw, bh = box
+                x = cx - bw/2
+                y = cy - bh/2
+                nms_boxes.append([float(x), float(y), float(bw), float(bh)])
+
+            indices = cv2.dnn.NMSBoxes(
+                nms_boxes, 
+                confidences.tolist(), 
+                conf_threshold, 
+                0.45
+            )
+            
+            if len(indices) > 0:
+                best_idx = indices[0]
+                if isinstance(best_idx, (list, np.ndarray)): best_idx = best_idx[0]
+                
+                box = boxes[best_idx]
+                score = confidences[best_idx]
+                class_id = class_ids[best_idx]
+                
+                cx, cy, bw, bh = box
+                scale = 640.0 # Assuming 640x640 input
+                
+                left = (cx - bw/2) / scale
+                top = (cy - bh/2) / scale
+                width = bw / scale
+                height = bh / scale
+                
+                label_short = self.skill_classes[class_id]
+                label_full = self.skill_label_map.get(label_short, label_short)
+                
+                return {
+                    "label": label_full,
+                    "short_code": label_short,
+                    "confidence": float(score),
+                    "bbox": [float(left), float(top), float(width), float(height)]
+                }
+                
+        except Exception as e:
+            print(f"GymnasticsAnalyzer Skill Det Error: {e}")
+            traceback.print_exc()
+            
+        return None
+
     def calibrate_and_normalize(self, landmarks, apparatus, frame_width=1, frame_height=1):
         """Normalize landmarks relative to apparatus anchor points or center of mass."""
         if not landmarks:
@@ -975,15 +1098,24 @@ class GymnasticsAnalyzer:
                 normalized.append(SimpleNamespace(x=rel_x, y=rel_y, z=lz, visibility=lv))
         return normalized
 
-    def identify_skill(self, landmarks, apparatus=None, category='Senior Elite', w=1000, h=1000):
+    def identify_skill(self, landmarks, apparatus=None, category='Senior Elite', w=1000, h=1000, frame=None, ai_result=None):
         """
         Robust Identity-First Gymnastics Skill Classifier.
-        Separates 'Identity' (Shape) from 'Execution' (Quality).
+        Incorporates YOLOv8 AI detection for primary identity.
         """
 
         try:
             # --------------------------------------------------
-            # 0. Validate Landmark Integrity FIRST
+            # 0. AI PRIMARY DETECTION (YOLOv8)
+            # --------------------------------------------------
+            ai_skill = ai_result
+            if ai_skill is None and frame is not None and self.skill_interpreter is not None:
+                ai_skill = self.detect_skill_yolo(frame)
+                if ai_skill:
+                    print(f"GymnasticsAnalyzer: AI Detected Skill: {ai_skill['label']} ({ai_skill['confidence']:.2%})")
+
+            # --------------------------------------------------
+            # 1. Validate Landmark Integrity
             # --------------------------------------------------
             if not landmarks or len(landmarks) < 29:
                 return {
@@ -1006,6 +1138,10 @@ class GymnasticsAnalyzer:
             
             is_occluded = len(occluded) > 0
 
+            # Identify MAG or WAG based on apparatus
+            app_label = apparatus.get('label', '') if isinstance(apparatus, dict) else ""
+            is_mag = any(a in app_label for a in ["Still Rings", "Pommel Horse", "Parallel Bars", "High Bar", "Floor Exercise MAG"])
+            
             # --------------------------------------------------
             # 1. Initialize Biometric Engine
             # --------------------------------------------------
@@ -1014,6 +1150,35 @@ class GymnasticsAnalyzer:
 
             m = analysis.get("measurements", {})
             met = analysis.get("metrics", {})
+
+            # --------------------------------------------------
+            # 2. AI Skill Identity Overrides
+            # --------------------------------------------------
+            # Use AI detection as primary identity if confident
+            if ai_skill and ai_skill['confidence'] > 0.4:
+                skill_name = ai_skill['label']
+                # Check for gender/apparatus specific feedback
+                if is_mag:
+                    feedback = self.analyze_mag_skill(landmarks, skill_name, category, w=w, h=h)
+                else:
+                    feedback = self.analyze_wag_skill(landmarks, skill_name, category, w=w, h=h)
+                
+                # If specialized analyzer confirmed or refined the skill, use it
+                final_res = {
+                    "skill": feedback.get("skill", skill_name),
+                    "type": feedback.get("type", "Skill"),
+                    "is_occluded": is_occluded,
+                    "metrics": met,
+                    "measurements": m,
+                    "ai_metadata": {
+                        "confidence": ai_skill['confidence'],
+                        "bbox": ai_skill['bbox'],
+                        "source": "yolov8-skill"
+                    }
+                }
+                return final_res
+
+            # Visibility / Occlusion Check
 
             # Visibility Guard for Split Angle (Stop hallucinations in profile)
             vis_l_knee = landmarks[25].get("visibility", 1.0) if isinstance(landmarks[25], dict) else getattr(landmarks[25], "visibility", 1.0)
@@ -1382,7 +1547,10 @@ class GymnasticsAnalyzer:
 
     def analyze_media(self, media_data, media_type='video', category='Senior Elite', gender='Female', hold_duration=2):
         self._init_tracker(media_type, category, gender)
-        apparatus = None
+        apparatus = {}
+        landmarks = []
+        result = {}
+        is_mag = (gender == 'Male')
         self._log_step("Input Received", {"media_type": media_type, "category": category, "gender": gender})
         """
         Main entry point for analyzing gymnastics media (video or image).
@@ -1473,19 +1641,29 @@ class GymnasticsAnalyzer:
                                         cached_apparatus = self.detect_apparatus(frame, pose_landmarks=lm_dicts)
                                         apparatus_detected = True
                                     
-                                    apparatus_info = cached_apparatus
+                                    apparatus = cached_apparatus
+                                    
+                                    # AI Skill Detection (Run periodically for performance)
+                                    f_ai_skill = None
+                                    if curr_frame_idx % (int(stride) * 10) == 0:
+                                        f_ai_skill = self.detect_skill_yolo(frame)
                                     
                                     # Calibrate/Normalize (Useful for consistent relative analysis, but NOT for overlay)
-                                    final_landmarks_calibrated = self.calibrate_and_normalize(final_landmarks, apparatus_info, w, h)
+                                    final_landmarks_calibrated = self.calibrate_and_normalize(final_landmarks, apparatus, w, h)
                                     
                                     # Store results
+                                    def lm_to_dict(lm):
+                                        if isinstance(lm, dict):
+                                            return {"x": float(lm["x"]), "y": float(lm["y"]), "z": float(lm["z"]), "visibility": float(lm["visibility"])}
+                                        return {"x": float(lm.x), "y": float(lm.y), "z": float(lm.z), "visibility": float(lm.visibility)}
+
                                     frames_data.append({
-                                        "time": curr_frame_idx / fps,
-                                        # FIXED: Use RAW global landmarks for visualization overlay!
-                                        "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility} for lm in final_landmarks],
-                                        "centered_landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility} for lm in final_landmarks_calibrated],
-                                        "raw_landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility} for lm in final_landmarks],
-                                        "apparatus": apparatus_info
+                                        "time": float(curr_frame_idx) / float(fps) if fps else 0.0,
+                                        "landmarks": [lm_to_dict(lm) for lm in final_landmarks],
+                                        "centered_landmarks": [lm_to_dict(lm) for lm in final_landmarks_calibrated],
+                                        "raw_landmarks": [lm_to_dict(lm) for lm in final_landmarks],
+                                        "apparatus": apparatus,
+                                        "ai_skill": f_ai_skill
                                     })
 
                                     # *** TRACKING UPDATE (Closed Loop) ***
@@ -1682,7 +1860,7 @@ class GymnasticsAnalyzer:
             
             if media_type == 'image':
                 # Single Frame Analysis
-                skill_info = self.identify_skill(landmarks, apparatus=apparatus_info, category=category, w=w, h=h)
+                skill_info = self.identify_skill(landmarks, apparatus=apparatus_info, category=category, w=w, h=h, frame=target_image)
                 
                 # Log Skill and Measurements
                 self._log_step("Skill Identification", {
@@ -1712,7 +1890,8 @@ class GymnasticsAnalyzer:
                 for frame_data in frames_data:
                     f_landmarks = [SimpleNamespace(**lm) for lm in frame_data['landmarks']]
                     f_apparatus = frame_data.get('apparatus')
-                    f_skill_result = self.identify_skill(f_landmarks, f_apparatus, category=category, w=w, h=h)
+                    f_ai_result = frame_data.get('ai_skill')
+                    f_skill_result = self.identify_skill(f_landmarks, f_apparatus, category=category, w=w, h=h, ai_result=f_ai_result)
                     
                     # Log Skill and Measurements for this frame
                     self._log_step(f"Frame {frames_data.index(frame_data)} Skill Analysis", {

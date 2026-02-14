@@ -1,0 +1,18 @@
+{
+  "model": "YOLOv8m-Skill",
+  "epochs": 100,
+  "classes": [
+    "BL",
+    "FL",
+    "HS",
+    "IN-IRON-C",
+    "IRON-C",
+    "L-CROSS",
+    "LS",
+    "M-UP",
+    "PN",
+    "VS"
+  ],
+  "trained_on": "2026-02-14T13:47:21.741836",
+  "map50": 0.9934160839160839
+}

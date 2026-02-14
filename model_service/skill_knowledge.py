@@ -23,6 +23,25 @@ SKILL_DATA = {
         "technicalCue": "Depress the scapula and 'lock' the lats while turning the rings slightly out."
     },
 
+    "Inverted Iron Cross": {
+        "name": "Inverted Iron Cross",
+        "category": "Strength / Statics",
+        "difficulty": "C",
+        "elementGroup": 2,
+        "description": "An inverted strength hold on the rings with arms extended horizontally.",
+        "technicalRequirements": [
+            "Body must be perfectly vertical in inverted position.",
+            "Arms must be horizontal (90° to torso).",
+            "Minimum 2-second hold."
+        ],
+        "focusAnatomy": ["Deltoids", "Trapezius", "Core"],
+        "commonDeductions": [
+            { "penalty": 0.3, "reason": "Body alignment deviation from vertical" },
+            { "penalty": 0.3, "reason": "Bent arms" }
+        ],
+        "technicalCue": "Push through the rings and maintain a tight hollow body while inverted."
+    },
+
     "Planche": {
         "name": "Planche (Straddle/Straight)",
         "category": "Strength",
@@ -103,6 +122,44 @@ SKILL_DATA = {
         "technicalCue": "Lengthen the spine and lift the back leg from the inner thigh, not just the foot."
     },
 
+    "Back Lever": {
+        "name": "Back Lever",
+        "category": "Strength / Statics",
+        "difficulty": "A",
+        "elementGroup": 2,
+        "description": "A static hold hanging from a bar or rings with the body held horizontal and face down.",
+        "technicalRequirements": [
+            "Body must be perfectly horizontal.",
+            "Arms fully extended.",
+            "Hips and shoulders at the same level."
+        ],
+        "focusAnatomy": ["Lower Back", "Glutes", "Shoulder Extensors"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Hips below shoulder level" },
+            { "penalty": 0.3, "reason": "Arching or piking in the body" }
+        ],
+        "technicalCue": "Squeeze your glutes and pull the bar/rings toward your hips to maintain the line."
+    },
+
+    "Front Lever": {
+        "name": "Front Lever",
+        "category": "Strength / Statics",
+        "difficulty": "B",
+        "elementGroup": 2,
+        "description": "A static hold hanging from a bar or rings with the body held horizontal and face up.",
+        "technicalRequirements": [
+            "Body must be perfectly horizontal.",
+            "Arms fully extended.",
+            "Lats fully engaged to pull the body up."
+        ],
+        "focusAnatomy": ["Latissimus Dorsi", "Core", "Scapular Retractors"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Hips sagging below shoulder level" },
+            { "penalty": 0.3, "reason": "Bent arms" }
+        ],
+        "technicalCue": "Think about 'rowing' the bar to your waist and keep your core tight."
+    },
+
     "Maltese": {
         "name": "Maltese",
         "category": "Strength",
@@ -159,6 +216,44 @@ SKILL_DATA = {
             { "penalty": 0.1, "reason": "Insufficient height" }
         ],
         "technicalCue": "Drive your hips up as the legs sweep through."
+    },
+
+    "L-Cross": {
+        "name": "L-Cross",
+        "category": "Strength / Statics",
+        "difficulty": "C",
+        "elementGroup": 2,
+        "description": "An Iron Cross performed with the legs held in an L-sit position.",
+        "technicalRequirements": [
+            "Arms horizontal (90° to torso).",
+            "Legs perfectly horizontal.",
+            "Hold for 2 seconds."
+        ],
+        "focusAnatomy": ["Pectoralis Major", "Hip Flexors", "Core"],
+        "commonDeductions": [
+            { "penalty": 0.3, "reason": "Legs below horizontal" },
+            { "penalty": 0.3, "reason": "Arms not horizontal" }
+        ],
+        "technicalCue": "Push the rings out and keep your legs compressed in a tight L."
+    },
+
+    "Muscle Up": {
+        "name": "Muscle Up",
+        "category": "Dynamic Strength",
+        "difficulty": "A",
+        "elementGroup": 1,
+        "description": "A transition from a hang to a support position in one continuous movement.",
+        "technicalRequirements": [
+            "Continuous movement without excessive swing.",
+            "Full extension at the top in support.",
+            "Symmetry in the pull and transition."
+        ],
+        "focusAnatomy": ["Lats", "Biceps", "Triceps", "Shoulder Girdle"],
+        "commonDeductions": [
+            { "penalty": 0.1, "reason": "Asymmetric pull (one arm before the other)" },
+            { "penalty": 0.3, "reason": "Excessive leg drive (kicking)" }
+        ],
+        "technicalCue": "Pull the bar/rings to your lower chest and lean forward aggressively to transition into support."
     },
     
     "Straddle Split": {
