@@ -7,6 +7,8 @@ import tempfile
 import os
 import base64
 import random
+import json
+from datetime import datetime
 from collections import Counter
 import traceback
 from types import SimpleNamespace
@@ -21,21 +23,186 @@ except ImportError:
     tf = None
 from PIL import Image, ImageOps
 
+class GymnasticsPoseEngine:
+    """Extracts a full suite of geometric measurements for gymnastics skill validation."""
+    def __init__(self, landmarks, w=1000, h=1000):
+        # Convert landmarks to a standard list if they aren't already
+        self.lm = landmarks
+        self.w = w
+        self.h = h
+        self.indices = {
+            'l_shoulder': 11, 'r_shoulder': 12, 'l_elbow': 13, 'r_elbow': 14,
+            'l_wrist': 15, 'r_wrist': 16, 'l_hip': 23, 'r_hip': 24,
+            'l_knee': 25, 'r_knee': 26, 'l_ankle': 27, 'r_ankle': 28,
+            'l_foot': 31, 'r_foot': 32
+        }
+
+    def _get_point(self, i):
+        """Returns isotropic 3D point from landmark index."""
+        lm = self.lm[i]
+        # Handle both dict and object types
+        lx = lm['x'] if isinstance(lm, dict) else lm.x
+        ly = lm['y'] if isinstance(lm, dict) else lm.y
+        lz = lm['z'] if isinstance(lm, dict) else lm.z
+        return np.array([lx * self.w, ly * self.h, lz * self.w])
+
+    def _get_visibility(self, i):
+        """Returns visibility score for landmark."""
+        lm = self.lm[i]
+        return lm['visibility'] if isinstance(lm, dict) else lm.visibility
+
+    def _get_3d_angle(self, p1_idx, p2_idx, p3_idx):
+        """Calculates internal angle at p2 using dimension-aware 3D coordinates."""
+        # Visibility check: if any point is occluded, return neutral 180 (straight) or 0
+        if any(self._get_visibility(i) < 0.3 for i in [p1_idx, p2_idx, p3_idx]):
+            return 180.0
+
+        p1, p2, p3 = self._get_point(p1_idx), self._get_point(p2_idx), self._get_point(p3_idx)
+        v1, v2 = p1 - p2, p3 - p2
+        
+        norm = np.linalg.norm(v1) * np.linalg.norm(v2)
+        if norm == 0: return 0.0
+        
+        cosine = np.dot(v1, v2) / norm
+        return round(float(np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))), 1)
+
+    def _get_horizon(self, p1_idx, p2_idx):
+        """Calculates 2D angle of segment relative to the horizon (floor)."""
+        p1, p2 = self._get_point(p1_idx), self._get_point(p2_idx)
+        # Vector from p1 to p2
+        v = p2 - p1
+        # Angle relative to horizontal [1, 0, 0] in 2D (x, y)
+        angle = np.degrees(np.arctan2(v[1], v[0])) # Keep signs to detect inversion vs. level
+        return round(float(angle), 1)
+
+    def get_full_analysis(self, apparatus=None):
+        """Generates comprehensive biometric report for the current frame."""
+        # 1. FIG Joint Suite (3D)
+        measurements = {
+            "l_elbow": self._get_3d_angle(11, 13, 15),
+            "r_elbow": self._get_3d_angle(12, 14, 16),
+            "l_hip": self._get_3d_angle(11, 23, 25),
+            "r_hip": self._get_3d_angle(12, 24, 26),
+            "l_knee": self._get_3d_angle(23, 25, 27),
+            "r_knee": self._get_3d_angle(24, 26, 28),
+            "l_shoulder": self._get_3d_angle(13, 11, 23),
+            "r_shoulder": self._get_3d_angle(14, 12, 24),
+            "l_ankle": self._get_3d_angle(25, 27, 31),
+            "r_ankle": self._get_3d_angle(26, 28, 32)
+        }
+        
+        # Averages for simplified scoring
+        measurements["elbow_avg"] = round(float((measurements["l_elbow"] + measurements["r_elbow"]) / 2), 1)
+        measurements["hip_avg"] = round(float((measurements["l_hip"] + measurements["r_hip"]) / 2), 1)
+        measurements["knee_avg"] = round(float((measurements["l_knee"] + measurements["r_knee"]) / 2), 1)
+        measurements["shoulder_avg"] = round(float((measurements["l_shoulder"] + measurements["r_shoulder"]) / 2), 1)
+        measurements["toe_point_avg"] = round(float((measurements["l_ankle"] + measurements["r_ankle"]) / 2), 1)
+
+        # 2. Orientation & Symmetry & Straightness
+        # Midpoint calculations for stable body line
+        p11, p12 = self._get_point(11), self._get_point(12)
+        p23, p24 = self._get_point(23), self._get_point(24)
+        p27, p28 = self._get_point(27), self._get_point(28)
+        p25, p26 = self._get_point(25), self._get_point(26) # knees
+        p13, p14 = self._get_point(13), self._get_point(14) # elbows
+        
+        # --- OCCLUSION MIRRORING (Profile View Symmetry) ---
+        # If one limb is occluded, mirror the visible limb coordinates
+        vis_l_elbow, vis_r_elbow = self._get_visibility(13), self._get_visibility(14)
+        vis_l_knee, vis_r_knee = self._get_visibility(25), self._get_visibility(26)
+        vis_l_ankle, vis_r_ankle = self._get_visibility(27), self._get_visibility(28)
+        
+        # Elbow mirroring
+        if vis_l_elbow > 0.7 and vis_r_elbow < 0.35:
+            p14 = np.array([p13[0], p13[1], p13[2]]) # Mirror L to R
+        elif vis_r_elbow > 0.7 and vis_l_elbow < 0.35:
+            p13 = np.array([p14[0], p14[1], p14[2]]) # Mirror R to L
+
+        # Knee mirroring
+        if vis_l_knee > 0.7 and vis_r_knee < 0.35:
+            p26 = np.array([p25[0], p25[1], p25[2]]) # Mirror L to R
+        elif vis_r_knee > 0.7 and vis_l_knee < 0.35:
+            p25 = np.array([p26[0], p26[1], p26[2]]) # Mirror R to L
+            
+        # Ankle mirroring
+        if vis_l_ankle > 0.7 and vis_r_ankle < 0.35:
+            p28 = np.array([p27[0], p27[1], p27[2]]) # Mirror L to R
+        elif vis_r_ankle > 0.7 and vis_l_ankle < 0.35:
+            p27 = np.array([p28[0], p28[1], p28[2]]) # Mirror R to L
+
+        mid_shldr = (p11 + p12) / 2
+        mid_hip = (p23 + p24) / 2
+        mid_ankle = (p27 + p28) / 2
+
+        # Divergence Angle: Angle between Left Thigh and Right Thigh relative to Mid Hip
+        # Use common origin (mid_hip) to get 0 degrees when knees/ankles touch
+        v_l_thigh = p25 - mid_hip
+        v_r_thigh = p26 - mid_hip
+        
+        norm_l = np.linalg.norm(v_l_thigh)
+        norm_r = np.linalg.norm(v_r_thigh)
+        
+        if norm_l > 0 and norm_r > 0:
+            cos_split = np.dot(v_l_thigh, v_r_thigh) / (norm_l * norm_r)
+            split_angle = float(np.degrees(np.arccos(np.clip(cos_split, -1.0, 1.0))))
+        else:
+            split_angle = 0.0
+
+        metrics = {
+            "torso_horizon": round(float(np.degrees(np.arctan2(mid_shldr[1] - mid_hip[1], mid_shldr[0] - mid_hip[0]))), 1),
+            "leg_horizon": round(float(np.degrees(np.arctan2(mid_hip[1] - mid_ankle[1], mid_hip[0] - mid_ankle[0]))), 1),
+            "leg_spread": round(float(abs(p27[0] - p28[0]) / self.w), 3),
+            "split_angle": round(float(split_angle), 1)
+        }
+
+        # Vector-Based Body Straightness: Alignment deviation via Dot Product
+        # Torso vector T (shldr -> hip) and Leg vector L (hip -> ankle)
+        v_torso = mid_hip - mid_shldr
+        v_legs = mid_ankle - mid_hip
+        
+        norm_t = np.linalg.norm(v_torso)
+        norm_l = np.linalg.norm(v_legs)
+        
+        if norm_t > 0 and norm_l > 0:
+            # For a straight body, v_torso and v_legs point in the same direction (nearly parallel)
+            cos_align = np.dot(v_torso, v_legs) / (norm_t * norm_l)
+            # Deviation angle: 0 means perfectly straight
+            align_dev = float(np.degrees(np.arccos(np.clip(cos_align, -1.0, 1.0))))
+            metrics["body_straightness"] = round(float(align_dev), 1)
+        else:
+            metrics["body_straightness"] = 0.0
+
+        # --- BALANCE BEAM CONTEXT CHECK ---
+        # If athlete is on the beam and torso is near horizontal, force horizontal mode
+        if apparatus and "Balance Beam" in apparatus.get('label', ''):
+            # If shoulder and hip are within 10% Y-distance of each other, force horizontal mode
+            if abs(mid_shldr[1] - mid_hip[1]) < (self.h * 0.1):
+                metrics["forced_horizontal"] = True
+
+        return {"measurements": measurements, "metrics": metrics}
+
 class GymnasticsAnalyzer:
     def __init__(self):
         try:
             # Model Path (Full/Heavy)
-            model_path = os.path.join(os.path.dirname(__file__), "models", "pose_landmarker.task")
+            # Preference: pose_landmarker_heavy.task as per tuning recommendations
+            model_path_heavy = os.path.join(os.path.dirname(__file__), "models", "pose_landmarker_heavy.task")
+            model_path_std = os.path.join(os.path.dirname(__file__), "models", "pose_landmarker.task")
+            
+            model_path = model_path_heavy if os.path.exists(model_path_heavy) else model_path_std
+            
             if not os.path.exists(model_path):
                 print(f"WARNING: Model not found at {model_path}. Analysis will fail.")
+            else:
+                print(f"GymnasticsAnalyzer: Using pose model: {os.path.basename(model_path)}")
             
-            # Create Landmarker for Image Mode - Standard Optimized Confidence
+            # Create Landmarker for Image Mode - High Precision Tuning
             options = PoseLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=model_path),
                 running_mode=RunningMode.IMAGE,
                 num_poses=1,
                 min_pose_detection_confidence=0.5,
-                min_pose_presence_confidence=0.5,
+                min_pose_presence_confidence=0.7, # Tuned for "Heavy" mode accuracy
                 min_tracking_confidence=0.5,
                 output_segmentation_masks=False
             )
@@ -49,7 +216,7 @@ class GymnasticsAnalyzer:
                 running_mode=RunningMode.VIDEO,
                 num_poses=1,
                 min_pose_detection_confidence=0.5,
-                min_pose_presence_confidence=0.5,
+                min_pose_presence_confidence=0.7, # Tuned for "Heavy" mode accuracy
                 min_tracking_confidence=0.5,
                 output_segmentation_masks=False
             )
@@ -88,6 +255,11 @@ class GymnasticsAnalyzer:
             
             # Load Classification Model (for apparatus identification)
             classifier_path = os.path.join(os.path.dirname(__file__), "models", "apparatus_classifier.h5")
+            
+            # Audit / Tracking data
+            self.current_gender = 'female'
+            self.tracking_enabled = False
+            self.tracked_person_bbox = None
             class_mapping_path = os.path.join(os.path.dirname(__file__), "models", "class_mapping.txt")
             
             self.classifier = None
@@ -118,6 +290,11 @@ class GymnasticsAnalyzer:
             self.tracked_person_bbox = None  # Cache the performer's bounding box
             self.tracking_enabled = False    # Enable tracking mode for videos
             
+            # Tracker State
+            self.session_id = ""
+            self.tracker_dir = ""
+            self.audit_log = {}
+            
         except Exception as e:
             print(f"GymnasticsAnalyzer Initialization Failed: {e}")
             traceback.print_exc()
@@ -137,7 +314,7 @@ class GymnasticsAnalyzer:
             "Horizontal Bar (HB)": {"length_cm": 240, "name": "Horizontal Bar (HB)"}
         }
     
-    def preprocess_frame(self, frame, enhance_contrast=True, denoise=True, sharpen=True):
+    def preprocess_frame(self, frame, enhance_contrast=True, denoise=True, sharpen=True, rotate_code=None):
         """
         Preprocess frame to improve pose landmark detection quality.
         
@@ -146,6 +323,7 @@ class GymnasticsAnalyzer:
             enhance_contrast: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
             denoise: Apply bilateral filtering to reduce noise while preserving edges
             sharpen: Apply sharpening to enhance edges
+            rotate_code: Optional cv2.rotate code (e.g., cv2.ROTATE_90_CLOCKWISE)
             
         Returns:
             Preprocessed BGR image
@@ -154,6 +332,10 @@ class GymnasticsAnalyzer:
             return None
         
         processed = frame.copy()
+
+        # 0. Rotation
+        if rotate_code is not None:
+            processed = cv2.rotate(processed, rotate_code)
         
         # 1. Denoise while preserving edges (bilateral filter)
         if denoise:
@@ -185,35 +367,34 @@ class GymnasticsAnalyzer:
         
         return processed
 
-    def _calculate_angle(self, a, b, c):
-        """Calculate 3D angle at joint b given three points a, b, c.
+    def _calculate_angle(self, a, b, c, w=1000, h=1000):
+        """Calculate 3D angle at joint b given three points a, b, c with isotropic scaling.
         
         Args:
             a, b, c: Landmark objects with x, y, z attributes
+            w, h: Current image dimensions for aspect ratio correction
             
         Returns:
             float: Angle in degrees at point b
         """
-        # Convert to numpy arrays for vector operations
-        a = np.array([a.x, a.y, a.z])
-        b = np.array([b.x, b.y, b.z])
-        c = np.array([c.x, c.y, c.z])
+        # Convert to numpy arrays and Apply Isotropic Scaling
+        # MediaPipe Z is roughly same scale as X (width-dependent)
+        # So we scale by W, H, W to get a uniform 'pixel-like' space
+        pa = np.array([a.x * w, a.y * h, a.z * w])
+        pb = np.array([b.x * w, b.y * h, b.z * w])
+        pc = np.array([c.x * w, c.y * h, c.z * w])
         
         # Calculate vectors from b to a and b to c
-        ba = a - b
-        bc = c - b
+        ba = pa - pb
+        bc = pc - pb
         
         # Calculate angle using dot product
-        # cos(θ) = (ba · bc) / (|ba| * |bc|)
-        cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+        norm_a = np.linalg.norm(ba)
+        norm_c = np.linalg.norm(bc)
+        if norm_a == 0 or norm_c == 0: return 0.0
         
-        # Clip to [-1, 1] to handle numerical errors
-        cosine_angle = np.clip(cosine_angle, -1.0, 1.0)
-        
-        # Convert to degrees
-        angle = np.degrees(np.arccos(cosine_angle))
-        
-        return angle
+        cosine_angle = np.dot(ba, bc) / (norm_a * norm_c)
+        return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
     def _map_custom_label(self, label):
         """Map custom model labels to standardized apparatus format.
@@ -516,7 +697,7 @@ class GymnasticsAnalyzer:
         self.tracked_person_bbox = None
         
         # Initialize Video Landmarker (Fresh instance to reset internal timestamp state)
-        if self.video_landmarker:
+        if self.video_landmarker is not None:
              self.video_landmarker.close()
              
         self.video_landmarker = PoseLandmarker.create_from_options(self.video_options)
@@ -679,7 +860,7 @@ class GymnasticsAnalyzer:
                 center_y = top + height / 2
 
                 # Anti-Person Overlap Check
-                if torso_bbox:
+                if torso_bbox is not None and len(torso_bbox) >= 4:
                     # torso_bbox is [x_min, y_min, x_max, y_max] in normalized coordinates
                     # Convert apparatus bbox to normalized center_x, center_y
                     app_center_x_norm = (left + width / 2) / w
@@ -794,281 +975,275 @@ class GymnasticsAnalyzer:
                 normalized.append(SimpleNamespace(x=rel_x, y=rel_y, z=lz, visibility=lv))
         return normalized
 
-    def identify_skill(self, landmarks, apparatus=None):
-        """Identify specific skills based on landmark positions using angle-based detection.
-        
-        Args:
-            landmarks: List of landmark objects with x, y, z, visibility attributes
-            apparatus: Optional apparatus info to refine detection
-            
-        Returns:
-            dict: {
-                "skill": str,           # Skill name
-                "type": str,            # "Static / Hold" or "Dynamic"
-                "metrics": dict         # Detailed measurements
-            }
+    def identify_skill(self, landmarks, apparatus=None, category='Senior Elite', w=1000, h=1000):
         """
+        Robust Identity-First Gymnastics Skill Classifier.
+        Separates 'Identity' (Shape) from 'Execution' (Quality).
+        """
+
         try:
-            apparatus_label = apparatus.get("label", "") if apparatus else ""
-            
-            # 1. Coordinate Normalization / Reference Points
-            # Use mid-hip as a stable center for verticality checks
-            mid_hip_y = (landmarks[23].y + landmarks[24].y) / 2
-            mid_shoulder_y = (landmarks[11].y + landmarks[12].y) / 2
-            
-            # 2. Handstand Check (Verticality & Inversion)
-            # Logic: Feet must be above head, and body must be aligned (shoulder-hip-ankle angle)
-            is_inverted = landmarks[27].y < landmarks[0].y and landmarks[28].y < landmarks[0].y
-            
-            if is_inverted:
-                # Calculate shoulder angle for verticality (wrist-shoulder-hip)
-                shoulder_angle = self._calculate_angle(landmarks[15], landmarks[11], landmarks[23])
-                
-                if shoulder_angle > 160:
-                    return {
-                        "skill": "Handstand",
-                        "type": "Static / Hold",
-                        "metrics": {
-                            "verticality": round(float(shoulder_angle), 1),
-                            "inverted": True
-                        }
-                    }
-
-            # 3. Iron Cross Check (Horizontal Alignment) - RINGS ONLY
-            if "Still Rings" in apparatus_label:
-                try:
-                    l_arm_line = self._calculate_angle(landmarks[11], landmarks[13], landmarks[15])
-                    r_arm_line = self._calculate_angle(landmarks[12], landmarks[14], landmarks[16])
-                    
-                    # Check if arms are perpendicular to the torso (shoulder-hip-shoulder angle)
-                    l_shoulder_lat = self._calculate_angle(landmarks[23], landmarks[11], landmarks[13])
-                    
-                    # Arms must be straight and horizontal
-                    arms_straight = l_arm_line > 165 and r_arm_line > 165
-                    arms_lateral = 80 < l_shoulder_lat < 110
-                    
-                    if arms_straight and arms_lateral:
-                        return {
-                            "skill": "Iron Cross",
-                            "type": "Static / Hold",
-                            "metrics": {
-                                "arm_straightness": round(float((l_arm_line + r_arm_line) / 2), 1),
-                                "lateral_angle": round(float(l_shoulder_lat), 1)
-                            }
-                        }
-                except (IndexError, ZeroDivisionError):
-                    pass
-
-            # 4. L-Sit / Pike Check
-            try:
-                # Hip angle: Shoulder-Hip-Ankle (Center of body focus)
-                hip_angle = self._calculate_angle(landmarks[11], landmarks[23], landmarks[27])
-                hands_down = landmarks[15].y > landmarks[11].y and landmarks[16].y > landmarks[12].y
-                
-                # Check for "L-Sit" or "V-Sit"
-                if hip_angle < 120 and hands_down:
-                    is_v_sit = hip_angle < 70
-                    skill_name = "V-Sit" if is_v_sit else "L-Sit"
-                    display_name = "Horizonation - V-Sit" if is_v_sit else "Horizonation - L-Sit"
-                    
-                    # Straight Arms Check (Elbow angles)
-                    l_elbow = self._calculate_angle(landmarks[11], landmarks[13], landmarks[15])
-                    r_elbow = self._calculate_angle(landmarks[12], landmarks[14], landmarks[16])
-                    
-                    # Straight Legs Check (Knee angles)
-                    l_knee = self._calculate_angle(landmarks[23], landmarks[25], landmarks[27])
-                    r_knee = self._calculate_angle(landmarks[24], landmarks[26], landmarks[28])
-                    
-                    # Horizonation: Leg height relative to hips
-                    ankle_y = (landmarks[27].y + landmarks[28].y) / 2
-                    hip_y = (landmarks[23].y + landmarks[24].y) / 2
-                    horizon_diff = hip_y - ankle_y 
-                    
-                    # Shoulder Angle (Flexion)
-                    shoulder_angle = self._calculate_angle(landmarks[15], landmarks[11], landmarks[23])
-                    
-                    # Toe Point Check (Ankle extension)
-                    l_toe_angle = self._calculate_angle(landmarks[25], landmarks[27], landmarks[31])
-                    r_toe_angle = self._calculate_angle(landmarks[26], landmarks[28], landmarks[32])
-                    toe_point = (l_toe_angle + r_toe_angle) / 2
-                    
-                    # Verticality (Torso - Head to Hips)
-                    torso_verticality = abs(landmarks[11].x - landmarks[23].x)
-                    
-                    return {
-                        "skill": skill_name, 
-                        "displayName": display_name,
-                        "type": "Static / Hold",
-                        "metrics": {
-                            "Final Score Vertical": round(float(torso_verticality), 3),
-                            "Straight Arms": round(float((l_elbow + r_elbow) / 2), 1),
-                            "Straight Legs": round(float((l_knee + r_knee) / 2), 1),
-                            "Shoulder Angle": round(float(shoulder_angle), 1),
-                            "Horizonation": round(float(horizon_diff * 100), 1),
-                            "Pointed Toes": round(float(toe_point), 1),
-                            "Hip Angle": round(float(hip_angle), 1)
-                        }
-                    }
-            except (IndexError, ZeroDivisionError):
-                pass
-
-            # 5. Planche / Press Handstand Check (Horizontal/Angled body, arms supporting)
-            try:
-                # Body alignment (Shoulder-Hip-Knee)
-                body_line = self._calculate_angle(landmarks[11], landmarks[23], landmarks[25])
-                
-                # Horizonation: Are shoulders and hips at similar height?
-                shoulder_y = (landmarks[11].y + landmarks[12].y) / 2
-                hip_y = (landmarks[23].y + landmarks[24].y) / 2
-                is_horizontal = abs(shoulder_y - hip_y) < 0.1
-                
-                # Shoulder Extension (Wrist-Shoulder-Hip)
-                shoulder_angle = self._calculate_angle(landmarks[15], landmarks[11], landmarks[23])
-                
-                # Hands must be supporting (below shoulders)
-                hands_down = landmarks[15].y > landmarks[11].y and landmarks[16].y > landmarks[12].y
-                
-                if hands_down and body_line > 140:
-                    if is_horizontal and 70 < shoulder_angle < 110:
-                        return {
-                            "skill": "Planche",
-                            "type": "Static / Hold",
-                            "metrics": {
-                                "body_alignment": round(float(body_line), 1),
-                                "horizonation": round(float(abs(shoulder_y - hip_y)), 3)
-                            }
-                        }
-                    elif hip_y < shoulder_y: # Hips higher than shoulders but not handstand yet
-                        return {
-                            "skill": "Press Handstand",
-                            "type": "Dynamic",
-                            "metrics": {
-                                "body_line": round(float(body_line), 1),
-                                "hip_elevation": round(float(shoulder_y - hip_y), 3)
-                            }
-                        }
-            except (IndexError, ZeroDivisionError):
-                pass
-
-            # 6. Y-Balance / Scale Check (One leg raised high)
-            foot_diff = abs(landmarks[27].y - landmarks[28].y)
-            if foot_diff > 0.4:
+            # --------------------------------------------------
+            # 0. Validate Landmark Integrity FIRST
+            # --------------------------------------------------
+            if not landmarks or len(landmarks) < 29:
                 return {
-                    "skill": "Y-Scale / Arabesque",
-                    "type": "Static / Hold",
-                    "metrics": {
-                        "leg_height_diff": round(float(foot_diff), 2)
-                    }
+                    "skill": "Unknown",
+                    "type": "Error",
+                    "is_occluded": True,
+                    "metrics": {},
+                    "measurements": {},
+                    "error": "Insufficient landmarks"
                 }
+
+            # Visibility / Occlusion Check
+            critical_joints = [13, 14, 23, 24, 25, 26]  # elbows, hips, knees
+            occluded = []
+            for j in critical_joints:
+                lm = landmarks[j]
+                vis = lm.get("visibility", 1.0) if isinstance(lm, dict) else getattr(lm, "visibility", 1.0)
+                if vis < 0.5:
+                    occluded.append(j)
+            
+            is_occluded = len(occluded) > 0
+
+            # --------------------------------------------------
+            # 1. Initialize Biometric Engine
+            # --------------------------------------------------
+            engine = GymnasticsPoseEngine(landmarks, w=w, h=h)
+            analysis = engine.get_full_analysis(apparatus=apparatus)
+
+            m = analysis.get("measurements", {})
+            met = analysis.get("metrics", {})
+
+            # Visibility Guard for Split Angle (Stop hallucinations in profile)
+            vis_l_knee = landmarks[25].get("visibility", 1.0) if isinstance(landmarks[25], dict) else getattr(landmarks[25], "visibility", 1.0)
+            vis_r_knee = landmarks[26].get("visibility", 1.0) if isinstance(landmarks[26], dict) else getattr(landmarks[26], "visibility", 1.0)
+            if vis_l_knee < 0.4 or vis_r_knee < 0.4:
+                met["split_angle"] = 0.0
+
+            # Safe extraction
+            torso_hz = met.get("torso_horizon", 90)
+            # FORCE HORIZONTAL if Balance Beam context check passed
+            if met.get("forced_horizontal"):
+                torso_hz = 10.0 # Force a low horizontal value to trigger Planche/Hold identities
                 
-            # 7. Bridge Check (Back bend)
-            hip_y = landmarks[23].y
-            head_y = landmarks[0].y
-            if hip_y < head_y and hip_y < landmarks[27].y:
+            leg_hz = met.get("leg_horizon", 90)
+            leg_spread = met.get("leg_spread", 0)
+            # Sync back if forced
+            if met.get("forced_horizontal"):
+                 met["torso_horizon"] = torso_hz
+
+            elbow_avg = m.get("elbow_avg", 0)
+            hip_avg = m.get("hip_avg", 180)
+            shoulder_avg = m.get("shoulder_avg", 180)
+
+            torso_vert = abs(90 - torso_hz)
+
+            # Inversion check (ankles above head)
+            feet_left_y = landmarks[27]['y'] if isinstance(landmarks[27], dict) else landmarks[27].y
+            feet_right_y = landmarks[28]['y'] if isinstance(landmarks[28], dict) else landmarks[28].y
+            feet_y = (feet_left_y + feet_right_y) / 2
+            
+            head_y = landmarks[0]['y'] if isinstance(landmarks[0], dict) else landmarks[0].y
+            is_inverted = feet_y < head_y
+
+            apparatus_label = (apparatus.get("label", "") if apparatus else "").lower()
+
+            # ==================================================
+            # SKILL IDENTIFICATION HIERARCHY
+            # ==================================================
+
+            # --------------------------------------------------
+            # A. HANDSTAND GROUP
+            # --------------------------------------------------
+            if is_inverted and torso_vert < 30:
+
+                skill = "Handstand"
+                if shoulder_avg < 150:
+                    skill = "Press Handstand"
+
+                return {
+                    "skill": skill,
+                    "type": "Static / Hold",
+                    "is_occluded": is_occluded,
+                    "metrics": {
+                        "verticality": round(float(torso_vert), 1)
+                    },
+                    "measurements": m
+                }
+
+            # --------------------------------------------------
+            # B. PLANCHE GROUP
+            # --------------------------------------------------
+            # User Override: If torso is very horizontal, it's a Planche regardless of arms
+            # Prioritize forced_horizontal for D-Score
+            is_developmental = category.lower() in ["u10", "u12", "junior"]
+            
+            if (met.get("forced_horizontal") or (torso_hz < 35 and leg_hz < 35)) and not is_inverted:
+                base_name = "Straddle Planche" if leg_spread > 0.35 else "Planche"
+                return {
+                    "skill": base_name,
+                    "type": "Strength Hold",
+                    "d_score_contribution": 0.3 if not is_developmental else 0.1,
+                    "is_occluded": is_occluded,
+                    "metrics": met,
+                    "measurements": m
+                }
+
+            # --------------------------------------------------
+            # C. L-SIT / V-SIT
+            # --------------------------------------------------
+            if hip_avg < 115 and torso_vert < 25 and leg_hz < 30:
+
+                skill = "V-Sit" if hip_avg < 70 else "L-Sit"
+
+                return {
+                    "skill": skill,
+                    "type": "Static / Hold",
+                    "is_occluded": is_occluded,
+                    "metrics": {
+                        "hip_angle": hip_avg
+                    },
+                    "measurements": m
+                }
+
+            # --------------------------------------------------
+            # D. APPARATUS SPECIFIC (RINGS)
+            # --------------------------------------------------
+            if "rings" in apparatus_label:
+
+                if (
+                    70 < shoulder_avg < 110
+                    and torso_vert < 20
+                    and elbow_avg > 165
+                ):
+                    return {
+                        "skill": "Iron Cross",
+                        "type": "Strength Hold",
+                        "is_occluded": is_occluded,
+                        "metrics": {
+                            "shoulder_extension": shoulder_avg
+                        },
+                        "measurements": m
+                    }
+
+            # --------------------------------------------------
+            # E. FLEXIBILITY (Bridge / Splits)
+            # --------------------------------------------------
+            mid_hip_y = ((landmarks[23]['y'] if isinstance(landmarks[23], dict) else landmarks[23].y) + 
+                         (landmarks[24]['y'] if isinstance(landmarks[24], dict) else landmarks[24].y)) / 2
+
+            # Bridge: hips highest + strong arch
+            if (
+                mid_hip_y < head_y
+                and mid_hip_y < feet_y
+                and torso_hz > 120
+            ):
                 return {
                     "skill": "Bridge",
-                    "type": "Static / Hold",
+                    "type": "Flexibility",
+                    "is_occluded": is_occluded,
                     "metrics": {
-                        "hip_elevation": round(head_y - hip_y, 2)
-                    }
+                        "torso_horizon": torso_hz
+                    },
+                    "measurements": m
                 }
 
-            # 8. Pommel Horse Support / Circle Check
-            # Robustness: Also check for flair movement even if apparatus detection missed 'Pommel'
-            is_pommel = "Pommel" in apparatus_label
-            legs_spread_wide_flair = abs(landmarks[27].x - landmarks[28].x) > 0.45
-            
-            if is_pommel or (legs_spread_wide_flair and mid_hip_y > 0.3):
-                # A flair involves the body being relatively horizontal
-                # Relaxed: Check if wrists are below shoulders (supporting weight)
-                hands_supporting = landmarks[15].y > landmarks[11].y and landmarks[16].y > landmarks[12].y
-                
-                if hands_supporting:
-                    if legs_spread_wide_flair:
-                        return {
-                            "skill": "Pommel Flair/Circle",
-                            "type": "Dynamic",
-                            "metrics": {
-                                "leg_spread": round(abs(landmarks[27].x - landmarks[28].x), 2)
-                            }
-                        }
-                    else:
-                        # Support check - simplified
-                        return {
-                            "skill": "Pommel Support",
-                            "type": "Static / Hold",
-                            "metrics": {}
-                        }
+            # Straddle Split
+            if leg_spread > 0.5 and torso_vert > 50:
+                return {
+                    "skill": "Straddle Split",
+                    "type": "Flexibility",
+                    "is_occluded": is_occluded,
+                    "metrics": {
+                        "leg_spread": leg_spread
+                    },
+                    "measurements": m
+                }
 
-            # 9. Straddle Split / Straddle L-Sit Check
-            try:
-                # Sensitive detection using Torso Length as a dynamic reference
-                torso_length = abs(landmarks[11].y - landmarks[23].y)
-                leg_spread = abs(landmarks[27].x - landmarks[28].x)
-                
-                # If legs are spread wide relative to torso height
-                if leg_spread > (torso_length * 1.2) or leg_spread > 0.4:
-                    hip_y = (landmarks[23].y + landmarks[24].y) / 2
-                    ankle_y = (landmarks[27].y + landmarks[28].y) / 2
-                    
-                    # If feet are at or above hip level = Straddle L-Sit/V-Sit
-                    if ankle_y <= hip_y + 0.05:
-                        # Differentiate between Straddle L and Straddle V based on ankle height
-                        # Use torso length as a reference: if feet are significantly above hips, it's a V-Sit
-                        is_v_sit = (hip_y - ankle_y) > (torso_length * 0.4)
-                        
-                        return {
-                            "skill": "Straddle V-Sit" if is_v_sit else "Straddle L-Sit",
-                            "type": "Static / Hold",
-                            "metrics": {
-                                "leg_spread": round(float(leg_spread), 2),
-                                "horizonation": round(float(hip_y - ankle_y), 3)
-                            }
-                        }
-                    else:
-                        return {
-                            "skill": "Straddle Split",
-                            "type": "Dynamic",
-                            "metrics": {"leg_spread": round(float(leg_spread), 2)}
-                        }
-            except (IndexError, ZeroDivisionError):
-                pass
-
-            # 10. Parallel Bars Support Check
-            if "Parallel Bars" in apparatus_label:
-                # ... standard support check ...
-                shoulders_above_hips = landmarks[11].y < landmarks[23].y and landmarks[12].y < landmarks[24].y
-                hands_at_bars = landmarks[15].y > landmarks[11].y and landmarks[16].y > landmarks[12].y
-                
-                if shoulders_above_hips and hands_at_bars:
-                     return {
-                        "skill": "PB Support",
-                        "type": "Static / Hold",
-                        "metrics": {
-                            "torso_verticality": round(float(abs(landmarks[11].x - landmarks[23].x)), 3)
-                        }
-                    }
-
-            # Default: Unknown/Transition
-            return {
-                "skill": "Transition/Unknown",
-                "type": "Dynamic",
-                "metrics": {}
-            }
-
-        except (IndexError, AttributeError, ZeroDivisionError) as e:
-            # Fallback for any errors
+            # --------------------------------------------------
+            # DEFAULT
+            # --------------------------------------------------
             return {
                 "skill": "Pose",
-                "type": "Unknown",
-                "metrics": {},
-                "error": str(e)
+                "type": "Transition",
+                "is_occluded": is_occluded,
+                "metrics": met,
+                "measurements": m
             }
 
-
-    def analyze_wag_skill(self, landmarks, skill_name, category, hold_duration=0, apparatus_label="Unknown"):
+        except Exception as e:
+            return {
+                "skill": "Error",
+                "type": "Exception",
+                "is_occluded": True,
+                "metrics": {},
+                "measurements": {},
+                "error": str(e)
+            }
+    
+    
+    def analyze_wag_skill(self, landmarks, skill_name, category, hold_duration=0, apparatus_label="Unknown", w=1000, h=1000):
         """
         Analyze a specific WAG skill for D-Score and execution errors.
+        """
+        from model_service.skill_knowledge import SKILL_DATA
+        skill_info = SKILL_DATA.get(skill_name)
+        
+        deductions = []
+        feedback = []
+        d_val = 0.1
+        skill_type = "A"
+        status = "Recognized"
+        element_group = 1
+
+        if skill_info:
+            difficulty_map = {"A": 0.1, "B": 0.2, "C": 0.3, "D": 0.4, "E": 0.5, "F": 0.6}
+            d_val = difficulty_map.get(skill_info.get("difficulty"), 0.1)
+            skill_type = skill_info.get("difficulty", "A")
+
+        # 1. Biometric Suite
+        engine = GymnasticsPoseEngine(landmarks, w=w, h=h)
+        analysis = engine.get_full_analysis()
+        measurements = analysis["measurements"]
+        metrics = analysis["metrics"]
+
+        # --- TECHNICAL FAULT DETECTION ---
+        
+        # 1. Body Alignment (Straightness)
+        if metrics.get("body_straightness", 0) > 15:
+            deductions.append({
+                "value": 0.1,
+                "observation": f"Poor body alignment ({metrics['body_straightness']}° deviation)",
+                "label": "Alignment"
+            })
+
+        # 2. Bent Knees check
+        l_knee, r_knee = measurements["l_knee"], measurements["r_knee"]
+        if l_knee < 165 or r_knee < 165:
+            deductions.append({
+                "value": 0.1, 
+                "observation": "Bent knees (detectable angle < 165°)", 
+                "label": "Bent Knees"
+            })
+            feedback.append("Squeeze your quads to keep your legs fully extended.")
+
+        return {
+            "skill": skill_name,
+            "d_score_contribution": d_val,
+            "status": status,
+            "type": skill_type,
+            "elementGroup": element_group,
+            "deductions": deductions,
+            "feedback": feedback,
+            "e_score_range": "Target E: 8.5 - 9.5",
+            "d_score_range": f"Standard {skill_type} DV"
+        }
+
+
+    def analyze_mag_skill(self, landmarks, skill_name, category, hold_duration=0, apparatus_label="Unknown", w=1000, h=1000):
+        """
+        Analyze a specific MAG skill for D-Score and execution errors.
         """
         from model_service.skill_knowledge import SKILL_DATA
         
@@ -1079,6 +1254,7 @@ class GymnasticsAnalyzer:
         feedback = []
         d_val = 0.0
         skill_type = "A"
+        element_group = 1
         status = "Pass" if skill_info else "Neutral"
         
         if skill_info:
@@ -1086,107 +1262,128 @@ class GymnasticsAnalyzer:
             difficulty_map = {"A": 0.1, "B": 0.2, "C": 0.3, "D": 0.4, "E": 0.5, "F": 0.6}
             d_val = difficulty_map.get(skill_info.get("difficulty"), 0.1)
             skill_type = skill_info.get("difficulty", "A")
+            element_group = skill_info.get("elementGroup", 1)
 
-        # --- TECHNICAL FAULT DETECTION ---
+        # 1. Biometric Suite
+        engine = GymnasticsPoseEngine(landmarks, w=w, h=h)
+        analysis = engine.get_full_analysis()
+        measurements = analysis["measurements"]
+        metrics = analysis["metrics"]
+
+        # --- TECHNICAL FAULT DETECTION (MAG Specific) ---
         
-        # 1. Bent Knees check (Joint 23-25-27 and 24-26-28)
-        try:
-            l_knee = self._calculate_angle(landmarks[23], landmarks[25], landmarks[27])
-            r_knee = self._calculate_angle(landmarks[24], landmarks[26], landmarks[28])
-            if l_knee < 165 or r_knee < 165:
-                # FIG Code: > 45° = 0.3, 15-45° = 0.1
+        # 1. Body Alignment (Straightness)
+        if metrics.get("body_straightness", 0) > 15:
+            deductions.append({
+                "value": 0.1, 
+                "observation": f"Poor body alignment ({metrics['body_straightness']}° deviation)", 
+                "label": "Alignment"
+            })
+
+        # 2. Bent Knees check
+        l_knee, r_knee = measurements["l_knee"], measurements["r_knee"]
+        if l_knee < 165 or r_knee < 165:
+            deductions.append({
+                "value": 0.1, 
+                "observation": "Bent knees (detectable angle < 165°)", 
+                "label": "Bent Knees"
+            })
+
+        # 2. Bent Arms check
+        l_elbow, r_elbow = measurements["l_elbow"], measurements["r_elbow"]
+        if l_elbow < 165 or r_elbow < 165:
+            deductions.append({
+                "value": 0.3, 
+                "observation": "Bent arms in support (detectable angle < 165°)", 
+                "label": "Bent Arms"
+            })
+
+        # 3. Strength Hold Duration (FIG MAG: < 2s = Large Deduction, < 1s = No Credit)
+        is_static = "Static" in skill_type or (skill_info and skill_info.get("type") == "Static / Hold")
+        if is_static and hold_duration < 2.0:
+            if hold_duration < 1.0:
+                d_val = 0.0
+                status = "No Credit"
+                feedback.append("Hold was too short to be recognized (< 1s).")
+            else:
                 deductions.append({
-                    "value": 0.1, 
-                    "observation": "Bent knees (detectable angle < 165°)", 
-                    "label": "Bent Knees"
+                    "value": 0.3,
+                    "observation": f"Short hold ({hold_duration:.1f}s)",
+                    "label": "Hold Duration"
                 })
-                feedback.append("Squeeze your quads to keep your legs fully extended.")
-        except (IndexError, AttributeError): pass
-
-        # 2. Bent Arms check (Joint 11-13-15 and 12-14-16)
-        try:
-            l_elbow = self._calculate_angle(landmarks[11], landmarks[13], landmarks[15])
-            r_elbow = self._calculate_angle(landmarks[12], landmarks[14], landmarks[16])
-            if l_elbow < 165 or r_elbow < 165:
-                deductions.append({
-                    "value": 0.3, 
-                    "observation": "Bent arms in support (detectable angle < 165°)", 
-                    "label": "Bent Arms"
-                })
-                feedback.append("Fully lock your elbows for a clean Execution score.")
-        except (IndexError, AttributeError): pass
-
-        # 3. Specific Skill Checks (e.g., Straddle L-Sit Height)
-        if skill_name == "Straddle L-Sit":
-            try:
-                # Leg Height (Horizonation) - ankles relative to hips
-                hip_y = (landmarks[23].y + landmarks[24].y) / 2
-                ankle_y = (landmarks[27].y + landmarks[28].y) / 2
-                # In L-Sit, ankles must be at or above hip level
-                if ankle_y > hip_y + 0.05: # lower is higher in y coordinate
-                    deductions.append({
-                        "value": 0.3, 
-                        "observation": "Legs significantly below horizontal", 
-                        "label": "Leg Height"
-                    })
-            except (IndexError, AttributeError): pass
-
-        if skill_name == "V-Sit":
-            try:
-                # Hip angle between 0 and 45 relative to torso (Sharp V)
-                hip_angle = self._calculate_angle(landmarks[11], landmarks[23], landmarks[27])
-                if hip_angle > 45:
-                    deductions.append({
-                        "value": 0.1,
-                        "observation": f"Insufficient V angle ({round(float(hip_angle), 1)}°)",
-                        "label": "Leg Height"
-                    })
-                    feedback.append("Pull your feet closer to your head for a sharper V-Sit.")
-            except (IndexError, AttributeError): pass
-
-        if "Straddle V-Sit" in skill_name:
-            try:
-                # Use mean hip angle as proxy for V height
-                l_hip = self._calculate_angle(landmarks[11], landmarks[23], landmarks[27])
-                r_hip = self._calculate_angle(landmarks[12], landmarks[24], landmarks[28])
-                avg_hip = (l_hip + r_hip) / 2
-                if avg_hip > 55: # Slightly more lenient for straddle
-                    deductions.append({
-                        "value": 0.1,
-                        "observation": f"Insufficient Straddle V height ({round(float(avg_hip), 1)}°)",
-                        "label": "Leg Height"
-                    })
-            except (IndexError, AttributeError): pass
-
-        if skill_name == "Planche":
-            try:
-                # Hips relative to shoulders for horizontal check
-                shoulder_y = (landmarks[11].y + landmarks[12].y) / 2
-                hip_y = (landmarks[23].y + landmarks[24].y) / 2
-                if abs(shoulder_y - hip_y) > 0.08:
-                    deductions.append({
-                        "value": 0.1,
-                        "observation": "Hips slightly outside horizontal plane",
-                        "label": "Body Alignment"
-                    })
-            except (IndexError, AttributeError): pass
-
-        # Fallback for dynamic/unspecified split skills
-        if "Split" in skill_name and d_val == 0.0:
-            d_val = 0.2
-            status = "Pass"
+                feedback.append("Maintain hold for full 2.0s to avoid deductions.")
 
         return {
             "skill": skill_name,
             "d_score_contribution": d_val,
             "status": status,
             "type": skill_type,
+            "elementGroup": element_group,
             "deductions": deductions,
             "feedback": feedback
         }
 
-    def analyze_media(self, media_data, media_type='video', category='Senior Elite', hold_duration=2):
+    def _init_tracker(self, media_type, category, gender):
+        """Initialize auditing to output_tracker/{session_id}/."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.session_id = f"run_{timestamp}_{random.randint(1000, 9999)}"
+        self.tracker_dir = os.path.join(os.getcwd(), "output_tracker", self.session_id)
+        os.makedirs(self.tracker_dir, exist_ok=True)
+        self.audit_log = {
+            "session_id": self.session_id,
+            "timestamp": timestamp,
+            "input_metadata": {
+                "media_type": media_type,
+                "category": category,
+                "gender": gender
+            },
+            "steps": []
+        }
+        self.current_gender = gender
+        print(f"Audit Tracker: Initialized {self.tracker_dir}")
+
+    def _log_step(self, step_name, data):
+        """Capture intermediate data for audit."""
+        if hasattr(self, 'audit_log'):
+            # Convert non-serializable objects (like SimpleNamespace)
+            serializable_data = self._make_serializable(data)
+            
+            # Explicitly include gender in step data for clarity if available
+            if hasattr(self, 'current_gender') and isinstance(serializable_data, dict):
+                serializable_data["_audit_gender"] = self.current_gender
+
+            self.audit_log["steps"].append({
+                "step": step_name,
+                "timestamp": datetime.now().isoformat(),
+                "data": serializable_data
+            })
+
+    def _make_serializable(self, obj):
+        """Recursively convert objects to dicts for JSON serialization."""
+        if isinstance(obj, dict):
+            return {k: self._make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_serializable(item) for item in obj]
+        elif isinstance(obj, (SimpleNamespace, object)) and hasattr(obj, "__dict__"):
+            return self._make_serializable(obj.__dict__)
+        elif isinstance(obj, (int, float, str, bool, type(None))):
+            return obj
+        else:
+            return str(obj)
+
+    def _save_audit(self, final_results):
+        """Write consolidated audit.json."""
+        if hasattr(self, 'audit_log'):
+            self.audit_log["final_results"] = final_results
+            file_path = os.path.join(self.tracker_dir, "audit.json")
+            with open(file_path, "w") as f:
+                json.dump(self.audit_log, f, indent=4)
+            print(f"Audit Tracker: Saved consolidated JSON to {file_path}")
+
+    def analyze_media(self, media_data, media_type='video', category='Senior Elite', gender='Female', hold_duration=2):
+        self._init_tracker(media_type, category, gender)
         apparatus = None
+        self._log_step("Input Received", {"media_type": media_type, "category": category, "gender": gender})
         """
         Main entry point for analyzing gymnastics media (video or image).
         """
@@ -1203,8 +1400,21 @@ class GymnasticsAnalyzer:
                 tmp_file.write(data)
                 tmp_path = tmp_file.name
             
+            # Save media to tracker directory for auditing
+            media_ext = ".jpg" if media_type == 'image' else ".mp4"
+            media_filename = f"input_media{media_ext}"
+            media_path = os.path.join(self.tracker_dir, media_filename)
+            with open(media_path, "wb") as f:
+                f.write(data)
+            self.audit_log["input_media"] = media_filename
+            
             frames_data = [] # To store per-frame analysis
             apparatus_info = {"label": "Floor Exercise", "confidence": 0.0} # Default
+            
+            if not apparatus_info.get("status"):
+                apparatus_info = {"label": "Floor Exercise (FX)", "confidence": 0.0, "status": "Default"}
+            
+            self._log_step("Apparatus Detection", apparatus_info)
             
             if media_type == 'video':
                 # Video Processing Path
@@ -1258,7 +1468,8 @@ class GymnasticsAnalyzer:
                                     # PERFORMANCE: Detect apparatus only on first frame, then cache
                                     if not apparatus_detected:
                                         # Use first frame's landmarks for apparatus context
-                                        lm_dicts = [{"x": lm.x, "y": lm.y} for lm in final_landmarks] # Minimal dict for detector
+                                        lm_dicts = [{"x": (lm.x if hasattr(lm, "x") else lm["x"]), 
+                                                     "y": (lm.y if hasattr(lm, "y") else lm["y"])} for lm in final_landmarks] # Minimal dict for detector
                                         cached_apparatus = self.detect_apparatus(frame, pose_landmarks=lm_dicts)
                                         apparatus_detected = True
                                     
@@ -1369,7 +1580,6 @@ class GymnasticsAnalyzer:
                         mp_image_enhanced = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb_enhanced)
                         detection_result = self.landmarker.detect(mp_image_enhanced)
                     
-                    # **STAGE 3 FALLBACK: Detection on Full Frame (Raw)**
                     if not detection_result.pose_landmarks:
                         print("GymnasticsAnalyzer: ROI detection failed, trying FULL FRAME...")
                         image_rgb_full = cv2.cvtColor(target_image, cv2.COLOR_BGR2RGB)
@@ -1379,6 +1589,29 @@ class GymnasticsAnalyzer:
                         if detection_result.pose_landmarks:
                             crop_offset_x, crop_offset_y = 0.0, 0.0
                             crop_scale_x, crop_scale_y = 1.0, 1.0
+
+                    # **STAGE 4 FALLBACK: Horizontal Rotation (Balance Beam Recovery)**
+                    if not detection_result.pose_landmarks:
+                        # Quick apparatus check (without pose) to see if we should try rotation
+                        temp_apparatus = self.detect_apparatus(target_image)
+                        is_beam = temp_apparatus and "Balance Beam" in temp_apparatus.get('label', '')
+                        
+                        if is_beam:
+                            print("GymnasticsAnalyzer: No upright pose found on Beam. Attempting HORIZONTAL rotation pass...")
+                            # Rotate 90 deg clockwise to make a planche look like a handstand
+                            rotated_roi = cv2.rotate(roi_image, cv2.ROTATE_90_CLOCKWISE)
+                            image_rgb_rot = cv2.cvtColor(rotated_roi, cv2.COLOR_BGR2RGB)
+                            mp_image_rot = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb_rot)
+                            rotated_result = self.landmarker.detect(mp_image_rot)
+                            
+                            if rotated_result.pose_landmarks:
+                                print("GymnasticsAnalyzer: Horizontal detection SUCCESS. Re-mapping coordinates...")
+                                # Inverse mapping: Rotate landmarks back (x, y) -> (y, 1-x)
+                                for lm in rotated_result.pose_landmarks[0]:
+                                    old_x, old_y = lm.x, lm.y
+                                    lm.x = old_y
+                                    lm.y = 1.0 - old_x
+                                detection_result = rotated_result
                     
                     if not detection_result.pose_landmarks:
                         return {"error": "No person detected in gymnastics pose."}
@@ -1430,7 +1663,7 @@ class GymnasticsAnalyzer:
                 var_y = np.var([n['y'] for n in noses])
                 stability = 1.0 - (var_x + var_y) * 50 # Scale variance to a 0-1 penalty
                 base_artistry = 3.5 + (stability * 1.5) # Base 3.5 + up to 1.5 for stability
-                return round(max(0.0, min(5.0, base_artistry)), 1)
+                return round(float(max(0.0, min(5.0, base_artistry))), 1)
 
                 
             # --- ARTISTRY & EXECUTION ---
@@ -1441,16 +1674,28 @@ class GymnasticsAnalyzer:
             
             skill_list = []
             metrics = {}
+            result = {} # Initialize early to avoid UnboundLocalError in finally
+            
+            # Identify MAG or WAG based on gender, category or apparatus
+            app_label = apparatus_info.get('label', '') if isinstance(apparatus_info, dict) else ""
+            is_mag = (gender.lower() == 'male') or "MAG" in category or any(a in app_label for a in ["Still Rings", "Pommel Horse", "Parallel Bars", "High Bar"])
             
             if media_type == 'image':
                 # Single Frame Analysis
-                skill_result = self.identify_skill(landmarks, apparatus_info)
-                skill_name = skill_result["skill"]
-                skill_type = skill_result.get("type", "Unknown")
-                skill_metrics = skill_result.get("metrics", {})
+                skill_info = self.identify_skill(landmarks, apparatus=apparatus_info, category=category, w=w, h=h)
+                
+                # Log Skill and Measurements
+                self._log_step("Skill Identification", {
+                    "skill": skill_info.get("skill"),
+                    "metrics": skill_info.get("metrics"),
+                    "measurements": skill_info.get("measurements")
+                })
+                skill_name = skill_info["skill"]
+                skill_type = skill_info.get("type", "Unknown")
+                skill_metrics = skill_info.get("metrics", {})
                 metrics = skill_metrics
                 
-                wag_feedback = self.analyze_wag_skill(landmarks, skill_name, category)
+                wag_feedback = self.analyze_wag_skill(landmarks, skill_name, category, w=w, h=h)
                 
                 final_skill_name = wag_feedback.get('skill', skill_name)
                 
@@ -1462,36 +1707,48 @@ class GymnasticsAnalyzer:
                 
             else:
                 # Video Analysis (aggregator logic)
+                
                 all_skills_found = []
                 for frame_data in frames_data:
                     f_landmarks = [SimpleNamespace(**lm) for lm in frame_data['landmarks']]
                     f_apparatus = frame_data.get('apparatus')
-                    f_skill_result = self.identify_skill(f_landmarks, f_apparatus)
+                    f_skill_result = self.identify_skill(f_landmarks, f_apparatus, category=category, w=w, h=h)
+                    
+                    # Log Skill and Measurements for this frame
+                    self._log_step(f"Frame {frames_data.index(frame_data)} Skill Analysis", {
+                        "timestamp_ms": frame_data.get("time", 0.0) * 1000,
+                        "skill": f_skill_result.get("skill"),
+                        "metrics": f_skill_result.get("metrics"),
+                        "measurements": f_skill_result.get("measurements")
+                    })
+                    
                     f_skill_name = f_skill_result["skill"]
                     f_skill_type = f_skill_result.get("type", "Unknown")
                     f_metrics = f_skill_result.get("metrics", {})
                     
-                    if f_skill_name == best_skill_name:
-                        metrics = f_metrics
-                    
-                    f_wag = self.analyze_wag_skill(f_landmarks, f_skill_name, category, hold_duration, apparatus_label=f_apparatus.get("label", "Unknown") if f_apparatus else "Unknown")
+                    if is_mag:
+                        f_feedback = self.analyze_mag_skill(f_landmarks, f_skill_name, category, hold_duration, apparatus_label=f_apparatus.get("label", "Unknown") if f_apparatus else "Unknown", w=w, h=h)
+                    else:
+                        f_feedback = self.analyze_wag_skill(f_landmarks, f_skill_name, category, hold_duration, apparatus_label=f_apparatus.get("label", "Unknown") if f_apparatus else "Unknown", w=w, h=h)
                     
                     # Enrich frame metadata for UI Timeline
-                    frame_data["skill"] = f_wag.get('skill', f_skill_name)
-                    frame_data["dv"] = f_wag.get('d_score_contribution', 0.0)
-                    frame_data["status"] = f_wag.get('status', 'Neutral')
+                    frame_data["skill"] = f_feedback.get('skill', f_skill_name)
+                    frame_data["dv"] = f_feedback.get('d_score_contribution', 0.0)
+                    frame_data["status"] = f_feedback.get('status', 'Neutral')
                     
                     if frame_data["dv"] > 0:
                         all_skills_found.append({
                             "name": frame_data["skill"],
                             "dv": frame_data["dv"],
-                            "type": f_wag.get('type', f_skill_type)
+                            "type": f_feedback.get('type', f_skill_type),
+                            "elementGroup": f_feedback.get('elementGroup', 1)
                         })
                 
                 # Deduplicate skills (take the highest value if seen multiple times)
                 unique_skills = {}
                 for s in all_skills_found:
-                    if s['name'] not in unique_skills or s['dv'] > unique_skills[s['name']]['dv']:
+                    s_dv = float(s.get('dv', 0.0)) if isinstance(s.get('dv'), (int, float)) else 0.0
+                    if s['name'] not in unique_skills or s_dv > float(unique_skills[s['name']].get('dv', 0.0)):
                         unique_skills[s['name']] = s
                 
                 skill_list = list(unique_skills.values())
@@ -1499,10 +1756,16 @@ class GymnasticsAnalyzer:
             # --- COMMON RESULT CONSTRUCTION ---
             
             # Calculate D-Score using the full list
-            from model_service.wag_d_score import WAGDScoreCalculator
-            d_calculator = WAGDScoreCalculator()
+            if is_mag:
+                from model_service.mag_d_score import MAGDScoreCalculator
+                d_calculator = MAGDScoreCalculator()
+            else:
+                from model_service.wag_d_score import WAGDScoreCalculator
+                d_calculator = WAGDScoreCalculator()
+                
             d_score_result = d_calculator.calculate_d_score(skill_list, category=category)
             total_d_score = float(d_score_result.get('total_d_score', 0.0))
+            self._log_step("Difficulty Calculation", d_score_result)
 
             # Initialize structured_e_rationale
             structured_e_rationale = {
@@ -1516,8 +1779,8 @@ class GymnasticsAnalyzer:
                 "reasons": []
             }
 
-            # Initialize result dictionary
-            result = {
+            # Update result dictionary
+            result.update({
                 "total_score": 0.0,
                 "difficulty": round(total_d_score, 2),
                 "execution": 0.0,
@@ -1527,9 +1790,10 @@ class GymnasticsAnalyzer:
                 "feedback": [],
                 "deductions": [],
                 "d_score_breakdown": d_score_result,
+                "discipline": "MAG" if is_mag else "WAG",
                 "comment": "Focus on maintaining stability and extension throughout your routine.",
                 "visualization_data": {}
-            }
+            })
 
             # Identify Best Skill for Details
             best_skill_name = "Pose"
@@ -1541,12 +1805,12 @@ class GymnasticsAnalyzer:
             # Find Visualization Frame
             viz_frame_idx = len(frames_data) // 2
             if skill_list:
-                 for idx, fd in enumerate(frames_data):
-                     flm = [SimpleNamespace(**lm) for lm in fd['landmarks']]
-                     fapp = fd.get('apparatus')
-                     if self.identify_skill(flm, fapp)["skill"] == best_skill_name:
-                         viz_frame_idx = idx
-                         break
+                for idx, fd in enumerate(frames_data):
+                    flm = [SimpleNamespace(**lm) for lm in fd['landmarks']]
+                    fapp = fd.get('apparatus')
+                    if self.identify_skill(flm, fapp, category=category, w=w, h=h)["skill"] == best_skill_name:
+                        viz_frame_idx = idx
+                        break
             
             target_frame_data = frames_data[viz_frame_idx]
             target_landmarks = [SimpleNamespace(**lm) for lm in target_frame_data['landmarks']]
@@ -1555,10 +1819,13 @@ class GymnasticsAnalyzer:
             current_apparatus = apparatus if apparatus else target_frame_data.get('apparatus')
             apparatus_label = current_apparatus.get("label", "Unknown") if isinstance(current_apparatus, dict) else "Unknown"
             
-            wag_feedback = self.analyze_wag_skill(target_landmarks, best_skill_name, category, hold_duration, apparatus_label=apparatus_label)
+            if is_mag:
+                exec_feedback = self.analyze_mag_skill(target_landmarks, best_skill_name, category, hold_duration, apparatus_label=apparatus_label, w=w, h=h)
+            else:
+                exec_feedback = self.analyze_wag_skill(target_landmarks, best_skill_name, category, hold_duration, apparatus_label=apparatus_label, w=w, h=h)
             
             # Calculate Technical Deductions
-            tech_deductions_list = wag_feedback.get('deductions', [])
+            tech_deductions_list = exec_feedback.get('deductions', [])
             total_tech_deductions = sum(d.get('value', 0.0) for d in tech_deductions_list)
             
             # Calculate Artistry Deductions (from Heuristic)
@@ -1568,17 +1835,23 @@ class GymnasticsAnalyzer:
             base_e_score = 10.0
             total_deductions = total_tech_deductions + artistry_deductions
             e_score = max(0.0, base_e_score - total_deductions)
-            e_score = round(e_score, 2)
+            e_score = round(float(e_score), 2)
             
             # Final Total Score
             final_score = total_d_score + e_score
+            self._log_step("Execution & Total Score", {"e_score": e_score, "final_score": final_score, "deductions": tech_deductions_list})
             
             # Update result with calculated values
-            result["total_score"] = round(final_score, 2)
+            result["total_score"] = round(float(final_score), 2)
             result["execution"] = e_score
             result["best_skill"] = best_skill_name
-            result["feedback"] = wag_feedback.get('feedback', [])
+            result["feedback"] = exec_feedback.get('feedback', [])
             result["deductions"] = tech_deductions_list
+            
+            # Include comprehensive biometric suite for verification
+            best_frame_biometrics = self.identify_skill(target_landmarks, current_apparatus, category=category, w=w, h=h)
+            result["biometrics"] = best_frame_biometrics.get("measurements", {})
+            result["metrics"] = best_frame_biometrics.get("metrics", {})
             
             # Populate structured_e_rationale
             structured_e_rationale["values"]["deductions"] = total_tech_deductions
@@ -1615,42 +1888,43 @@ class GymnasticsAnalyzer:
                 "metrics": metrics,
                 "d_score_rationale": d_rationale,
                 "e_score_rationale": structured_e_rationale,
-                "landmarks": target_frame_data['landmarks'],
-                "raw_landmarks": target_frame_data.get('raw_landmarks'),
+                "best_frame_index": viz_frame_idx,
                 "frames": frames_data,
-                "apparatus": target_frame_data.get('apparatus'),
                 # Coach's Corner Data
                 "technical_cue": skill_details.get("technicalCue", "Focus on form and stability."),
                 "focus_anatomy": skill_details.get("focusAnatomy", []),
                 "common_errors": skill_details.get("commonDeductions", []),
-                "skill_description": skill_details.get("description", "")
+                "skill_description": skill_details.get("description", ""),
+                "category": category,
+                "hold_duration": hold_duration,
+                "discipline": "MAG" if is_mag else "WAG"
             })
             
-            return result
-        except Exception as e:
-            print(f"Error in analyze_media inner: {e}")
-            traceback.print_exc()
-            raise e
         except Exception as e:
             print(f"Error in analyze_media: {e}")
+            import traceback
             traceback.print_exc()
-            return {"error": str(e)}
+            result = {"error": str(e)}
         finally:
             if 'tmp_path' in locals() and os.path.exists(tmp_path):
                 try: os.unlink(tmp_path)
                 except: pass
+            
+            self._save_audit(result)
+        
+        return result
 
 class WAGAnalyzer(GymnasticsAnalyzer):
     """Specialized Analyzer for Women's Artistic Gymnastics (2D)."""
     
-    def check_split_angle(self, landmarks):
+    def check_split_angle(self, landmarks, w=1000, h=1000):
         """W-001: Split (Cross or Side) >= 180 degrees."""
         # Hip (23/24), Knee (25/26), Ankle (27/28)
-        # Using vector math on 2D projection
-        l_hip = np.array([landmarks[23].x, landmarks[23].y])
-        l_knee = np.array([landmarks[25].x, landmarks[25].y])
-        r_hip = np.array([landmarks[24].x, landmarks[24].y])
-        r_knee = np.array([landmarks[26].x, landmarks[26].y])
+        # Using vector math on 2D projection with isotropic scaling
+        l_hip = np.array([landmarks[23].x * w, landmarks[23].y * h])
+        l_knee = np.array([landmarks[25].x * w, landmarks[25].y * h])
+        r_hip = np.array([landmarks[24].x * w, landmarks[24].y * h])
+        r_knee = np.array([landmarks[26].x * w, landmarks[26].y * h])
         
         v_l = l_knee - l_hip
         v_r = r_knee - r_hip
@@ -1666,25 +1940,27 @@ class WAGAnalyzer(GymnasticsAnalyzer):
         # If they are parallel (standing), angle is 0
         return round(angle, 1)
 
-    def check_ring_arch(self, landmarks):
+    def check_ring_arch(self, landmarks, w=1000, h=1000):
         """W-002: Upper Body Arch >= 80 degrees."""
         # Shoulder (12), Hip (24), Knee (26)
         return self._calculate_angle(
             landmarks[12],
             landmarks[24],
-            landmarks[26]
+            landmarks[26],
+            w=w, h=h
         )
 
-    def check_head_release(self, landmarks):
+    def check_head_release(self, landmarks, w=1000, h=1000):
         """W-003: Head Release >= 100 degrees."""
         # Ear (8), Neck/Shoulder (12), Hip (24)
         return self._calculate_angle(
             landmarks[8],
             landmarks[12],
-            landmarks[24]
+            landmarks[24],
+            w=w, h=h
         )
 
-    def analyze_wag_skill(self, landmarks, skill_name, category="Senior", hold_duration=2.0, apparatus_label="Unknown"):
+    def analyze_wag_skill(self, landmarks, skill_name, category="Senior", hold_duration=2.0, w=1000, h=1000, apparatus_label="Unknown"):
         """Evaluate specific WAG criteria for a given skill with strict biomechanical thresholds."""
         metrics = {}
         feedback = {
@@ -1728,19 +2004,19 @@ class WAGAnalyzer(GymnasticsAnalyzer):
         min_ring_arch = 80.0 if not is_developmental else 60.0
 
         # 1. Split Check (W-001)
-        split_angle = self.check_split_angle(landmarks)
+        split_angle = self.check_split_angle(landmarks, w=w, h=h)
         metrics["W-001 (Split)"] = f"{split_angle}°"
         
         is_split = split_angle > 140
         split_pass = split_angle >= min_split
 
         # 2. Ring Arch (W-002)
-        ring_arch = self.check_ring_arch(landmarks)
+        ring_arch = self.check_ring_arch(landmarks, w=w, h=h)
         metrics["W-002 (Arch)"] = f"{ring_arch}°"
         arch_pass = ring_arch >= min_ring_arch
 
         # 3. Head Release (W-003)
-        head_release = self.check_head_release(landmarks)
+        head_release = self.check_head_release(landmarks, w=w, h=h)
         metrics["W-003 (Head)"] = f"{head_release}°"
         head_pass = head_release >= min_head_release
 

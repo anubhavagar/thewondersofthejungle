@@ -13,7 +13,8 @@ const SCORING_CONFIG = {
 const WAGControlView = ({ analysisResult, mediaUrl, mediaType, scoringCategory, setScoringCategory, holdDuration, setHoldDuration, onReAnalyze }) => {
     const [aspectRatio, setAspectRatio] = useState(16 / 9);
     const [mediaSize, setMediaSize] = useState({ width: 0, height: 0 });
-    const [currentApparatus, setCurrentApparatus] = useState(analysisResult?.apparatus || null);
+    const initialApparatus = analysisResult?.apparatus || (analysisResult?.frames?.[analysisResult?.best_frame_index || 0]?.apparatus) || null;
+    const [currentApparatus, setCurrentApparatus] = useState(initialApparatus);
     const [isLightBackground, setIsLightBackground] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -231,8 +232,9 @@ const WAGControlView = ({ analysisResult, mediaUrl, mediaType, scoringCategory, 
 
     useEffect(() => {
         // SYNCHRONIZE: Ensure apparatus state reflects the current analysis result
-        if (analysisResult?.apparatus) {
-            setCurrentApparatus(analysisResult.apparatus);
+        const targetApparatus = analysisResult?.apparatus || analysisResult?.frames?.[analysisResult?.best_frame_index || 0]?.apparatus;
+        if (targetApparatus) {
+            setCurrentApparatus(targetApparatus);
         } else if (!analysisResult?.frames?.length) {
             setCurrentApparatus(null); // Reset for new static images
         }
@@ -251,19 +253,27 @@ const WAGControlView = ({ analysisResult, mediaUrl, mediaType, scoringCategory, 
             vid.addEventListener('timeupdate', onTime);
             return () => vid.removeEventListener('timeupdate', onTime);
         } else {
-            const renderLandmarks = analysisResult?.raw_landmarks || analysisResult?.landmarks;
+            const bestFrameIdx = analysisResult?.best_frame_index || 0;
+            const targetFrame = analysisResult?.frames?.[bestFrameIdx] || analysisResult;
+            const renderLandmarks = targetFrame?.raw_landmarks || targetFrame?.landmarks;
             if (renderLandmarks) {
-                drawSkeleton(renderLandmarks, analysisResult?.apparatus || currentApparatus);
+                drawSkeleton(renderLandmarks, targetFrame?.apparatus || currentApparatus);
+                if (targetFrame?.apparatus) setCurrentApparatus(targetFrame.apparatus);
             }
         }
     }, [analysisResult, mediaType]);
 
-    // Auto-reanalyze when category changes
+    // Auto-reanalyze when category or hold duration changes
     useEffect(() => {
-        if (scoringCategory && onReAnalyze) {
+        const isAlreadySynced =
+            scoringCategory === analysisResult.category &&
+            holdDuration === analysisResult.hold_duration;
+
+        if (!isAlreadySynced && onReAnalyze) {
+            console.log("Auto-reanalyzing due to config change...", { scoringCategory, holdDuration });
             onReAnalyze();
         }
-    }, [scoringCategory]);
+    }, [scoringCategory, holdDuration, analysisResult.category, analysisResult.hold_duration]);
 
     const config = SCORING_CONFIG[scoringCategory];
 

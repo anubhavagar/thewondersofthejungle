@@ -42,9 +42,12 @@ frontend-k8s.yaml
 gym_data/
 **/yolo_training/
 **/trained_model/
-**/*.h5
-**/*.tflite
-**/*.pt
-**/*.png
 .ipynb_checkpoints/
 **/__pycache__/
+
+# Large Binary Files (Allow specific production models)
+**/*.png
+!model_service/models/*.tflite
+!model_service/models/*.h5
+!model_service/models/*.json
+!class_mapping.txt

@@ -101,6 +101,7 @@ async def analyze_gymnastics(request: GymnasticsAnalysisRequest):
             media_data=request.media_data, 
             media_type=request.media_type, 
             category=request.category,
+            gender=request.gender,
             hold_duration=request.hold_duration
         )
         return results

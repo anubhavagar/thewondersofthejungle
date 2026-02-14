@@ -1,10 +1,19 @@
+---
+title: The Wonders of the Jungle
+emoji: 🤸
+colorFrom: green
+colorTo: blue
+sdk: docker
+pinned: false
+---
+
 # 🤸 Gymnastics Apparatus Scorer
 
 A high-performance AI system for detecting gymnastics apparatus and analyzing athlete performance. The project uses MediaPipe for pose estimation and a custom YOLOv8 model for specialized apparatus detection.
 
 ## 📊 Model Performance: YOLOv8m
 
-Our custom-trained YOLOv8 medium model achieves high accuracy in identifying key gymnastics equipment:
+Our custom-trained YOLOv8 medium model achieves high accuracy in identifying gymnastics equipment:
 
 | Metric | Value |
 | :--- | :--- |
@@ -21,15 +30,19 @@ Our custom-trained YOLOv8 medium model achieves high accuracy in identifying key
 - `frontend/`: React + Vite application for the judging interface and control view.
 - `model_service/`: AI model logic, including:
     - `gymnastics.py`: Core analysis engine using MediaPipe + YOLO.
-    - `train_yolov8_colab.py`: Local training script for the apparatus detector.
-- `gym_data/`: Dataset storage for training and validation.
+- `gym_data/`: Dataset storage (included in `.gitignore`).
 
 ## 🛠️ Setup Instructions
 
 ### 1. Backend Setup
 ```bash
-pip install -r backend/requirements.txt
-python -m uvicorn backend.main:app --reload --port 8000
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies and run
+pip install -r api/requirements.txt
+python -m uvicorn api.main:app --reload --port 8000
 ```
 
 ### 2. Frontend Setup

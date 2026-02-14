@@ -22,6 +22,7 @@ const GymnasticsScoring = () => {
     const [loading, setLoading] = useState(false);
     const [category, setCategory] = useState(null);
     const [holdDuration, setHoldDuration] = useState(2.0); // Default 2s for strength holds
+    const [gender, setGender] = useState('Female'); // 'Male' or 'Female'
     const [showCategoryModal, setShowCategoryModal] = useState(false);
 
     // Refs
@@ -68,8 +69,8 @@ const GymnasticsScoring = () => {
         }, 500);
 
         try {
-            // Send media_type, media_data, category and hold_duration
-            const response = await api.analyzeGymnastics(preview, mediaType, category, holdDuration);
+            // Send media_type, media_data, category, gender and hold_duration
+            const response = await api.analyzeGymnastics(preview, mediaType, category, gender, holdDuration);
             clearInterval(interval);
 
             if (!response.data || response.data.error) {
@@ -313,7 +314,10 @@ const GymnasticsScoring = () => {
                             {getBadge(result.total_score).text}
                         </span>
                         <Badge bg="dark" className="ms-2 p-2" style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                            Group: {category}
+                            Group: {category?.replace(/_/g, ' ').toUpperCase()}
+                        </Badge>
+                        <Badge bg={result.discipline === 'MAG' ? 'primary' : 'danger'} className="ms-2 p-2" style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                            {result.discipline}
                         </Badge>
                     </div>
 
@@ -735,49 +739,59 @@ const GymnasticsScoring = () => {
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body className="p-4">
-                    <p className="text-center text-muted mb-4 fs-5">Pick your category for the best judging results!</p>
-                    <div className="d-grid gap-3">
-                        <Button
-                            variant="light"
-                            className="p-3 fs-5 rounded-4 shadow-sm border-2"
-                            style={{ borderColor: 'var(--junior-cyan)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("u8_tiny_tots"); setShowCategoryModal(false); }}
-                        >
-                            👶 U8 (Tiny Tots)
-                        </Button>
-                        <Button
-                            variant="light"
-                            className="p-3 fs-5 rounded-4 shadow-sm border-2"
-                            style={{ borderColor: 'var(--junior-cyan)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("u10_beginner"); setShowCategoryModal(false); }}
-                        >
-                            🐣 U10 (Beginner)
-                        </Button>
-                        <Button
-                            variant="light"
-                            className="p-3 fs-5 rounded-4 shadow-sm border-2"
-                            style={{ borderColor: 'var(--junior-yellow)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("u12_sub_junior"); setShowCategoryModal(false); }}
-                        >
-                            🦁 U12 (Sub Junior)
-                        </Button>
-                        <Button
-                            variant="light"
-                            className="p-3 fs-5 rounded-4 shadow-sm border-2"
-                            style={{ borderColor: 'var(--junior-yellow)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("u14_intermediate"); setShowCategoryModal(false); }}
-                        >
-                            🐯 U14 (Intermediate)
-                        </Button>
-                        <Button
-                            variant="light"
-                            className="p-3 fs-5 rounded-4 shadow-sm border-2"
-                            style={{ borderColor: 'var(--junior-pink)', transition: 'all 0.2s' }}
-                            onClick={() => { setCategory("senior_elite"); setShowCategoryModal(false); }}
-                        >
-                            👑 Senior (Elite)
-                        </Button>
+                    <p className="text-center text-muted mb-2 fs-5">Pick your gender & category!</p>
+
+                    {/* Gender Selection Toggle */}
+                    <div className="d-flex justify-content-center gap-2 mb-3 p-1 rounded-pill" style={{ backgroundColor: 'rgba(0,0,0,0.03)' }}>
+                        {[
+                            { id: 'Female', label: 'Female', emoji: '👩', color: 'var(--junior-pink)' },
+                            { id: 'Male', label: 'Male', emoji: '👨', color: 'var(--junior-cyan)' }
+                        ].map((g) => (
+                            <Button
+                                key={g.id}
+                                variant="none"
+                                className={`rounded-pill flex-fill py-2 border-2 d-flex align-items-center justify-content-center gap-2 gender-btn-interactive ${gender === g.id ? 'active' : ''}`}
+                                style={{
+                                    fontFamily: 'Fredoka One',
+                                    backgroundColor: gender === g.id ? g.color : 'transparent',
+                                    color: gender === g.id ? 'white' : g.color,
+                                    borderColor: g.color,
+                                    transition: 'all 0.3s'
+                                }}
+                                onClick={() => setGender(g.id)}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>{g.emoji}</span>
+                                <span>{g.label}</span>
+                            </Button>
+                        ))}
                     </div>
+
+                    <Row className="g-2">
+                        {[
+                            { id: "u8_tiny_tots", label: "U8", sub: "Tiny Tots", emoji: "🐣", color: "var(--junior-cyan)" },
+                            { id: "u10_beginner", label: "U10", sub: "Beginner", emoji: "👶", color: "var(--junior-cyan)" },
+                            { id: "u12_sub_junior", label: "U12", sub: "Sub Junior", emoji: "🦁", color: "var(--junior-yellow)" },
+                            { id: "u14_intermediate", label: "U14", sub: "Intermediate", emoji: "🐯", color: "var(--junior-yellow)" },
+                            { id: "senior_elite", label: "Senior", sub: "Elite", emoji: "👑", color: "var(--junior-pink)", full: true }
+                        ].map((cat) => (
+                            <Col key={cat.id} xs={cat.full ? 12 : 6}>
+                                <Button
+                                    variant="light"
+                                    className="w-100 p-2 d-flex flex-column align-items-center justify-content-center rounded-4 shadow-sm border-2 category-btn-interactive"
+                                    style={{
+                                        borderColor: cat.color,
+                                        minHeight: '85px',
+                                        transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                                    }}
+                                    onClick={() => { setCategory(cat.id); setShowCategoryModal(false); }}
+                                >
+                                    <span style={{ fontSize: '1.5rem' }}>{cat.emoji}</span>
+                                    <div className="fw-bold" style={{ fontSize: '1rem', color: '#444' }}>{cat.label}</div>
+                                    <div className="small text-muted" style={{ fontSize: '0.7rem' }}>{cat.sub}</div>
+                                </Button>
+                            </Col>
+                        ))}
+                    </Row>
                 </Modal.Body>
                 <Modal.Footer className="border-0 pt-0">
                     <Button variant="link" className="text-muted mx-auto" onClick={() => setShowCategoryModal(false)}>

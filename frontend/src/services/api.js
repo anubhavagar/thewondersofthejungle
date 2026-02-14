@@ -18,11 +18,12 @@ const api = {
     saveHistory: (name, result, image = null, userId = null) => {
         return axios.post(`${API_URL}/history`, { name, result, image, user_id: userId });
     },
-    analyzeGymnastics: (mediaData, mediaType = 'image', category = 'Senior', holdDuration = 2.0) => {
+    analyzeGymnastics: (mediaData, mediaType = 'image', category = 'Senior', gender = 'Female', holdDuration = 2.0) => {
         return axios.post(`${API_URL}/analyze/gymnastics`, {
             media_data: mediaData,
             media_type: mediaType,
             category: category,
+            gender: gender,
             hold_duration: holdDuration
         });
     },
