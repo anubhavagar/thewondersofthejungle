@@ -709,9 +709,9 @@ class GymnasticsAnalyzer:
                 # Apply Penalties
                 priority_score = input_priority * (1.0 - edge_penalty)
                 
-            if priority_score > max_priority_score:
-                max_priority_score = priority_score
-                best_person = [x_min, y_min, x_max, y_max]
+                if priority_score > max_priority_score:
+                    max_priority_score = priority_score
+                    best_person = [x_min, y_min, x_max, y_max]
         
         # If tracking is enabled, cache this detection for future frames
         if self.tracking_enabled and best_person is not None:
@@ -796,7 +796,8 @@ class GymnasticsAnalyzer:
                 
                 # Filter by confidence
                 # INCREASED: back to 0.5 to prevent false positives (like the home photo issue)
-                conf_threshold = 0.5
+                # TUNING: Lowered to 0.3 to catch difficult angles (e.g. looking up at P-Bars)
+                conf_threshold = 0.3
                 mask = confidences > conf_threshold
                 filtered_boxes = boxes[mask]
                 filtered_conf = confidences[mask]
@@ -2053,16 +2054,16 @@ class GymnasticsAnalyzer:
 
                 
             # Add target range for professional branding
-            if wag_feedback.get('e_score_range'):
-                structured_e_rationale["target_range"] = wag_feedback['e_score_range']
+            if exec_feedback.get('e_score_range'):
+                structured_e_rationale["target_range"] = exec_feedback['e_score_range']
             
             # Update D-score rationale (Already structured from wag_d_score.py)
             d_rationale = d_score_result.get('rationale', {})
-            if wag_feedback.get('d_score_range') and isinstance(d_rationale, dict):
-                d_rationale["target_range"] = wag_feedback['d_score_range']
+            if exec_feedback.get('d_score_range') and isinstance(d_rationale, dict):
+                d_rationale["target_range"] = exec_feedback['d_score_range']
 
             result.update({
-                "status": wag_feedback.get('status', 'Neutral'),
+                "status": exec_feedback.get('status', 'Neutral'),
                 "skill": best_skill_name,
                 "metrics": metrics,
                 "d_score_rationale": d_rationale,

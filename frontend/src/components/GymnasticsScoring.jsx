@@ -80,12 +80,13 @@ const GymnasticsScoring = () => {
             // Calculate dynamic energy level (Safety checks added)
             const totalScore = response.data.total_score || 0;
             const skills = response.data.skill || []; // Ensure array
-            const currentSkill = Array.isArray(skills) ? skills : [skills]; // Handle string vs array
+            const currentSkillRaw = Array.isArray(skills) ? skills : [skills]; // Handle string vs array
+            const currentSkillStrings = currentSkillRaw.map(s => (typeof s === 'object' ? (s.name || 'Unknown') : s));
 
             let calculatedEnergy = (totalScore / 20) * 100;
 
             // Artificial Boost for "Power" skills
-            if (["Iron Cross", "Handstand", "Planche"].some(s => currentSkill.join(' ').includes(s))) {
+            if (["Iron Cross", "Handstand", "Planche"].some(s => currentSkillStrings.join(' ').includes(s))) {
                 calculatedEnergy += 15;
             }
             if ((response.data.difficulty || 0) > 3.0) calculatedEnergy += 10;
@@ -309,19 +310,7 @@ const GymnasticsScoring = () => {
             {result && (
                 <div className="animate__animated animate__bounceIn">
                     {/* Badge Popup */}
-                    <div className="mb-3">
-                        <span className="badge rounded-pill px-4 py-2 shadow-sm" style={{ backgroundColor: getBadge(result.total_score).color, fontSize: '1.2rem', color: getBadge(result.total_score).textColor }}>
-                            {getBadge(result.total_score).text}
-                        </span>
-                        <Badge bg="dark" className="ms-2 p-2" style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                            Group: {category?.replace(/_/g, ' ').toUpperCase()}
-                        </Badge>
-                        <Badge bg={result.discipline === 'MAG' ? 'primary' : 'danger'} className="ms-2 p-2" style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                            {result.discipline}
-                        </Badge>
-                    </div>
-
-                    {/* WAG Control View Integration */}
+                    {/* WAG Control View Integration (Replaced old badges) */}
                     <WAGControlView
                         analysisResult={result}
                         mediaUrl={preview}
@@ -353,7 +342,7 @@ const GymnasticsScoring = () => {
                             {result.skill && result.skill !== "Pose" && (
                                 <>
                                     <Badge bg="warning" text="dark" className="p-2" style={{ fontSize: '1rem' }}>
-                                        {result.skill}
+                                        {typeof result.skill === 'object' ? (result.skill.name || result.skill.label || 'Skill') : result.skill}
                                     </Badge>
                                     <OverlayTrigger
                                         placement="top"
@@ -380,19 +369,19 @@ const GymnasticsScoring = () => {
                                     <Modal show={showSkillInfo} onHide={() => setShowSkillInfo(false)} centered className="font-quicksand text-dark">
                                         <Modal.Header closeButton className="bg-light">
                                             <Modal.Title className="font-cinzel text-success fw-bold">
-                                                {result.skill}
+                                                {typeof result.skill === 'object' ? (result.skill.name || 'Skill') : result.skill}
                                             </Modal.Title>
                                         </Modal.Header>
                                         <Modal.Body>
                                             <div className="text-center mb-3">
                                                 <span style={{ fontSize: '3rem' }}>
-                                                    {result.skill === "Iron Cross" ? "🪐" :
-                                                        result.skill.includes("Scale") ? "Yz" :
-                                                            result.skill === "Handstand" ? "🤸‍♂️" : "✨"}
+                                                    {(typeof result.skill === 'object' ? (result.skill.name || '') : result.skill) === "Iron Cross" ? "🪐" :
+                                                        (typeof result.skill === 'object' ? (result.skill.name || '') : result.skill).includes("Scale") ? "Yz" :
+                                                            (typeof result.skill === 'object' ? (result.skill.name || '') : result.skill) === "Handstand" ? "🤸‍♂️" : "✨"}
                                                 </span>
                                             </div>
                                             <div className="fs-5">
-                                                {SKILL_DESCRIPTIONS[result.skill] || "A fundamental gymnastics skill requiring strength, balance, and precision."}
+                                                {SKILL_DESCRIPTIONS[typeof result.skill === 'object' ? (result.skill.name || 'Unknown') : result.skill] || "A fundamental gymnastics skill requiring strength, balance, and precision."}
                                             </div>
                                             <div className="mt-3 small text-muted fst-italic">
                                                 Source: MasterClass & Professional Guidelines.
@@ -553,7 +542,7 @@ const GymnasticsScoring = () => {
                                     <div className="d-flex flex-wrap gap-1">
                                         {result.d_score_breakdown.top_8_skills.map((skill, idx) => (
                                             <Badge key={idx} bg="none" style={{ border: '1px solid var(--junior-pink)', color: 'var(--junior-pink)', fontSize: '0.7rem' }}>
-                                                {skill}
+                                                {typeof skill === 'object' ? (skill.name || skill.label || 'Skill') : skill}
                                             </Badge>
                                         ))}
                                     </div>
